@@ -8,7 +8,6 @@ using SWB_Base.UI;
 
 namespace SWB_Base
 {
-
     public partial class WeaponBase
     {
         private Panel healthDisplay;
@@ -16,6 +15,7 @@ namespace SWB_Base
         private Panel customizationMenu;
 
         private Panel hitmarker;
+        private Panel crosshair;
 
         public override void CreateHudElements()
         {
@@ -26,10 +26,8 @@ namespace SWB_Base
 
             if (UISettings.ShowCrosshair)
             {
-                CrosshairPanel = new Crosshair
-                {
-                    Parent = Local.Hud
-                };
+                crosshair = CreateCrosshair();
+                crosshair.Parent = Local.Hud;
             }
 
             if (UISettings.ShowHitmarker)
@@ -57,6 +55,11 @@ namespace SWB_Base
             }
         }
 
+        public virtual Panel CreateCrosshair()
+        {
+            return new Crosshair();
+        }
+
         public override void DestroyHudElements()
         {
             base.DestroyHudElements();
@@ -64,6 +67,7 @@ namespace SWB_Base
             if (healthDisplay != null) healthDisplay.Delete(true);
             if (ammoDisplay != null) ammoDisplay.Delete(true);
             if (hitmarker != null) hitmarker.Delete(true);
+            if (crosshair != null) crosshair.Delete(true);
             if (customizationMenu != null) customizationMenu.Delete();
         }
 
