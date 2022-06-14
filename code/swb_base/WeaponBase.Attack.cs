@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Sandbox;
-
-/* 
+﻿/* 
  * Weapon base for weapons using magazine based reloading 
 */
 
@@ -244,21 +239,15 @@ namespace SWB_Base
         /// </summary>
         public virtual IEnumerable<TraceResult> TraceBullet(Vector3 start, Vector3 end, float radius = 2.0f)
         {
-            bool inWater = Map.Physics.IsPointWater(start);
-
             var tr = Trace.Ray(start, end)
                     .UseHitboxes()
-                    .HitLayer(CollisionLayer.Water, !inWater)
+                    .HitLayer(CollisionLayer.Water, false)
                     .Ignore(Owner)
                     .Ignore(this)
                     .Size(radius)
                     .Run();
 
             yield return tr;
-
-            //
-            // Another trace, bullet going through thin material, penetrating water surface?
-            //
         }
 
         /// <summary>
