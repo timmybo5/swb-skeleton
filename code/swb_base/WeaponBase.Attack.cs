@@ -1,6 +1,6 @@
-﻿/* 
- * Weapon base for weapons using magazine based reloading 
-*/
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
+using Sandbox;
 
 namespace SWB_Base
 {
@@ -63,7 +63,7 @@ namespace SWB_Base
 
             TimeSincePrimaryAttack = 0;
             TimeSinceSecondaryAttack = 0;
-            TimeSinceFired = 0;
+            timeSinceFired = 0;
 
             if (!TakeAmmo(1))
             {
@@ -74,7 +74,7 @@ namespace SWB_Base
                 {
                     TimeSincePrimaryAttack = 999;
                     TimeSinceSecondaryAttack = 999;
-                    TimeSinceFired = 999;
+                    timeSinceFired = 999;
                     Reload();
                 }
                 return;
@@ -234,20 +234,25 @@ namespace SWB_Base
         }
 
         /// <summary>
-        /// Does a trace from start to end, does bullet impact effects. Coded as an IEnumerable so you can return multiple
-        /// hits, like if you're going through layers or ricocet'ing or something.
+        /// A single bullet trace from start to end with a certain radius.
         /// </summary>
-        public virtual IEnumerable<TraceResult> TraceBullet(Vector3 start, Vector3 end, float radius = 2.0f)
+        public virtual TraceResult TraceBullet(Vector3 start, Vector3 end, float radius = 2.0f)
         {
+            var startsInWater = SurfaceUtil.IsPointWater(start);
+            List<string> withoutTags = new();
+
+            if (startsInWater)
+                withoutTags.Add("water");
+
             var tr = Trace.Ray(start, end)
                     .UseHitboxes()
-                    .HitLayer(CollisionLayer.Water, false)
+                    .WithoutTags(withoutTags.ToArray())
                     .Ignore(Owner)
                     .Ignore(this)
                     .Size(radius)
                     .Run();
 
-            yield return tr;
+            return tr;
         }
 
         /// <summary>

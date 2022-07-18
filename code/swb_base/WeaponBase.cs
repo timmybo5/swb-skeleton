@@ -1,6 +1,4 @@
-﻿using System;
-using Sandbox;
-using Sandbox.UI;
+﻿using Sandbox;
 
 /* 
  * Weapon base for weapons using magazine based reloading 
@@ -8,21 +6,15 @@ using Sandbox.UI;
 
 namespace SWB_Base
 {
-
     public partial class WeaponBase : CarriableBase
     {
         public override void Spawn()
         {
             base.Spawn();
 
-            CollisionGroup = CollisionGroup.Weapon;
-            SetInteractsAs(CollisionLayer.Debris);
+            Tags.Add("weapon");
 
             SetModel(WorldModelPath);
-
-            PickupTrigger = new PickupTrigger();
-            PickupTrigger.Parent = this;
-            PickupTrigger.Position = Position;
         }
 
         public override void ActiveStart(Entity ent)
@@ -307,11 +299,6 @@ namespace SWB_Base
             TimeSinceActiveStart = 0;
 
             base.OnCarryStart(carrier);
-
-            if (PickupTrigger.IsValid())
-            {
-                PickupTrigger.EnableTouch = false;
-            }
         }
 
         public override void OnCarryDrop(Entity dropper)
@@ -333,14 +320,9 @@ namespace SWB_Base
                     attach.CreateModel(this);
                 }
             }
-
-            if (PickupTrigger.IsValid())
-            {
-                PickupTrigger.EnableTouch = true;
-            }
         }
 
-        public override void SimulateAnimator(PawnAnimator anim)
+        public override void SimulateAnimator(PlayerBaseAnimator anim)
         {
             anim.SetAnimParameter("holdtype", (int)HoldType);
             anim.SetAnimParameter("aim_body_weight", 1.0f);
