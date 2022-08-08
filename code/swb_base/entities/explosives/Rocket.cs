@@ -36,26 +36,31 @@ namespace SWB_Base
 
             for (int i = 0; i < RocketEffects.Count; i++)
             {
-                rocketParticles.Add(Particles.Create(RocketEffects[i], this, null, true));
+                rocketParticles.Add(Particles.Create(RocketEffects[i], this, true));
             }
         }
 
         protected override void OnPhysicsCollision(CollisionEventData eventData)
         {
-            if (eventData.Entity == Owner) return;
+            if (eventData.Other.Entity == Owner) return;
 
             Explode();
         }
 
         public override void Tick()
         {
-            // Rocket flight
-            var downForce = Rotation.Down * 4;
-            var random = new Random();
-            var timeSinceMod = (int)Math.Max(0, Inaccuracy * timeSince);
-            var sideForce = Rotation.Left * (random.Next(0, timeSinceMod) * 2 - timeSinceMod);
+            var inWater = SurfaceUtil.IsPointWater(Position);
 
-            Velocity += downForce + sideForce;
+            // Rocket flight
+            if (!inWater)
+            {
+                var downForce = Rotation.Down * 4;
+                var random = new Random();
+                var timeSinceMod = (int)Math.Max(0, Inaccuracy * timeSince);
+                var sideForce = Rotation.Left * (random.Next(0, timeSinceMod) * 2 - timeSinceMod);
+
+                Velocity += (downForce + sideForce) * 20;
+            }
 
             // Update sound
             rocketLoopSound.SetPosition(Position);
