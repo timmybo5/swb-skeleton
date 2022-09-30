@@ -1,9 +1,4 @@
-﻿using Sandbox;
-using SWB_Base;
-using SWB_Base.Attachments;
-using SWB_Base.Bullets;
-
-namespace SWB_WEAPONS
+﻿namespace SWB_WEAPONS
 {
     [Library("template_weapon", Title = "Template Weapon")]
     public class TemplateWeapon : WeaponBase
@@ -23,7 +18,7 @@ namespace SWB_WEAPONS
             Primary = new ClipInfo
             {
                 Ammo = 25,
-                AmmoType = AmmoType.Rifle,
+                AmmoType = AmmoTypes.Rifle,
                 ClipSize = 25,
 
                 BulletSize = 3f,
