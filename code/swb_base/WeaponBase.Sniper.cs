@@ -49,15 +49,13 @@ public partial class WeaponBaseSniper : WeaponBase
             oldSpread = Primary.Spread;
 
         Primary.Spread = 0;
-        if (IsServer)
-        {
-            var player = Owner as PlayerBase;
 
-            if (player.CameraMode is ThirdPersonCamera)
-            {
-                switchBackToThirdP = true;
-                player.CameraMode = new FirstPersonCamera(player);
-            }
+        var player = Owner as PlayerBase;
+
+        if (player.CameraMode is ThirdPersonCamera)
+        {
+            switchBackToThirdP = true;
+            player.CameraMode = new FirstPersonCamera();
         }
 
         if (IsLocalPawn)
@@ -84,12 +82,12 @@ public partial class WeaponBaseSniper : WeaponBase
         IsScoped = false;
         Primary.Spread = oldSpread;
 
-        if (IsServer && switchBackToThirdP)
+        if (switchBackToThirdP)
         {
             var player = Owner as PlayerBase;
 
             switchBackToThirdP = false;
-            player.CameraMode = new ThirdPersonCamera(player);
+            player.CameraMode = new ThirdPersonCamera();
         }
 
         if (IsLocalPawn)
@@ -111,7 +109,7 @@ public partial class WeaponBaseSniper : WeaponBase
         }
     }
 
-    public override void Simulate(Client owner)
+    public override void Simulate(IClient owner)
     {
         base.Simulate(owner);
         var shouldTuck = ShouldTuck();
@@ -130,7 +128,7 @@ public partial class WeaponBaseSniper : WeaponBase
     {
         base.CreateHudElements();
 
-        if (Local.Hud == null) return;
+        if (Game.RootPanel == null) return;
 
         if (UseRenderTarget)
         {
@@ -140,7 +138,7 @@ public partial class WeaponBaseSniper : WeaponBase
         else
         {
             SniperScopePanel = new SniperScope(LensTexture, ScopeTexture);
-            SniperScopePanel.Parent = Local.Hud;
+            SniperScopePanel.Parent = Game.RootPanel;
         }
     }
 }

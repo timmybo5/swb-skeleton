@@ -55,14 +55,14 @@ partial class ViewModelBase : BaseViewModel
     {
         if (playerFOV == -1)
         {
-            playerFOV = Local.UserPreference.FieldOfView;
+            playerFOV = Game.Preferences.FieldOfView;
             finalPlayerFOV = playerFOV;
             targetWeaponFOV = weapon.FOV;
             finalWeaponFOV = weapon.FOV;
         }
 
-        Rotation = Camera.Rotation;
-        Position = Camera.Position;
+        Rotation = this.player.ViewAngles.ToRotation();
+        Position = this.player.EyePosition;
 
         if (weapon.IsDormant) return;
         if (Owner != null && Owner.Health <= 0)
