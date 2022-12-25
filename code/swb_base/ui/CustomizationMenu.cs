@@ -44,7 +44,7 @@ public class CustomizationMenu : Panel
         var categories = menu.Add.Panel("categories");
 
         translator = Translator.GetInstance();
-        previewMaterial = Material.Load("materials/swb/attachments/preview.vmat");
+        previewMaterial = Material.Load("materials/swb/attachments/preview_2.vmat");
         activeWeapon.AttachmentCategories.Sort();
 
         // Add categories
@@ -258,10 +258,9 @@ public class CustomizationMenu : Panel
         if (activeAttachmentPanels.ContainsKey(catName))
         {
             var activeAttach = activeWeapon.GetActiveAttachmentFromCategory(catName);
-            if (activeAttach == null) return;
 
-            // Hide equipped model
-            activeAttach.ViewAttachmentModel.RenderColor = Color.Transparent;
+            if (activeAttach != null && activeAttach.ViewAttachmentModel != null)
+                activeAttach.ViewAttachmentModel.RenderColor = Color.Transparent;
         }
     }
 
@@ -284,7 +283,8 @@ public class CustomizationMenu : Panel
             CreateInfoPanel(activeAttachBase);
 
             // Unhide equipped model
-            activeAttach.ViewAttachmentModel.RenderColor = Color.White;
+            if (activeAttach != null && activeAttach.ViewAttachmentModel != null)
+                activeAttach.ViewAttachmentModel.RenderColor = Color.White;
         }
     }
 
@@ -355,25 +355,21 @@ public class CustomizationMenu : Panel
 
         // Create preview model
         previewModel = attach.CreateModel(activeWeapon);
-        previewModel.SetMaterialOverride(previewMaterial);
+        previewModel?.SetMaterialOverride(previewMaterial);
     }
 
     private void RemovePreviewModel()
     {
-        if (previewModel != null)
-        {
-            previewModel.Delete();
-            previewModel = null;
-        }
+        previewModel?.Delete();
+        previewModel = null;
     }
 
     public override void OnDeleted()
     {
         // Make sure active attachment is visible
         var activeAttach = activeWeapon.GetActiveAttachmentFromCategory(activeCategoryPName);
-        if (activeAttach != null)
+        if (activeAttach != null && activeAttach.ViewAttachmentModel != null)
             activeAttach.ViewAttachmentModel.RenderColor = Color.White;
-
 
         // RemovePreviewModel
         RemovePreviewModel();

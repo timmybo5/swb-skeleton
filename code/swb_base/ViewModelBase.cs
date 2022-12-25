@@ -19,7 +19,6 @@ partial class ViewModelBase : BaseViewModel
     private Vector3 targetVectorRot;
     private float targetPlayerFOV = -1;
     private float targetWeaponFOV = -1;
-    private float playerFOV = -1;
 
     // Finalized animation values
     private Vector3 finalVectorPos;
@@ -53,12 +52,11 @@ partial class ViewModelBase : BaseViewModel
 
     public void UpdateCamera()
     {
-        if (playerFOV == -1)
+        if (targetWeaponFOV == -1)
         {
-            playerFOV = Game.Preferences.FieldOfView;
-            finalPlayerFOV = playerFOV;
-            targetWeaponFOV = weapon.FOV;
-            finalWeaponFOV = weapon.FOV;
+            finalPlayerFOV = Game.Preferences.FieldOfView;
+            targetWeaponFOV = weapon.General.FOV;
+            finalWeaponFOV = weapon.General.FOV;
         }
 
         Rotation = this.player.ViewAngles.ToRotation();
@@ -76,13 +74,13 @@ partial class ViewModelBase : BaseViewModel
         finalVectorRot = finalVectorRot.LerpTo(targetVectorRot, animSpeed * RealTime.Delta);
         finalPlayerFOV = MathX.LerpTo(finalPlayerFOV, targetPlayerFOV, playerFOVSpeed * animSpeed * RealTime.Delta);
         finalWeaponFOV = MathX.LerpTo(finalWeaponFOV, targetWeaponFOV, playerFOVSpeed * animSpeed * RealTime.Delta);
-        animSpeed = 10 * weapon.WalkAnimationSpeedMod;
+        animSpeed = 10 * weapon.General.WalkAnimationSpeedMod;
 
         // Change the angles and positions of the viewmodel with the new vectors
         Rotation *= Rotation.From(finalVectorRot.x, finalVectorRot.y, finalVectorRot.z);
         Position += finalVectorPos.z * Rotation.Up + finalVectorPos.y * Rotation.Forward + finalVectorPos.x * Rotation.Right;
         Camera.FieldOfView = finalPlayerFOV;
-        Camera.Main.SetViewModelCamera(finalWeaponFOV, 0.01f, 100.0f);
+        Camera.Main.SetViewModelCamera(finalWeaponFOV, 0.01f, 1000.0f);
 
         // I'm sure there's something already that does this for me, but I spend an hour
         // searching through the wiki and a bunch of other garbage and couldn't find anything...
@@ -91,9 +89,9 @@ partial class ViewModelBase : BaseViewModel
 
         // Initialize the target vectors for this frame
         targetVectorPos = new Vector3(weapon.ViewModelOffset.Pos);
-        targetVectorRot = new Vector3(MathUtil.ToVector3(weapon.ViewModelOffset.Angle));
-        targetPlayerFOV = playerFOV;
-        targetWeaponFOV = weapon.FOV;
+        targetVectorRot = MathUtil.ToVector3(weapon.ViewModelOffset.Angle);
+        targetPlayerFOV = Game.Preferences.FieldOfView;
+        targetWeaponFOV = weapon.General.FOV;
 
         // Model editor
         if (Owner is PlayerBase player && (player.IsModelEditing() || player.IsAttachmentEditing()))
@@ -216,26 +214,26 @@ partial class ViewModelBase : BaseViewModel
                 speedMod = timeDiff * 10;
             }
 
-            animSpeed = 10 * weapon.WalkAnimationSpeedMod * speedMod;
+            animSpeed = 10 * weapon.General.WalkAnimationSpeedMod * speedMod;
             targetVectorPos += weapon.ZoomAnimData.Pos;
             targetVectorRot += MathUtil.ToVector3(weapon.ZoomAnimData.Angle);
 
-            if (weapon.ZoomPlayerFOV > 0)
-                targetPlayerFOV = weapon.ZoomPlayerFOV;
+            if (weapon.General.ZoomPlayerFOV > 0)
+                targetPlayerFOV = weapon.General.ZoomPlayerFOV;
 
-            if (weapon.ZoomWeaponFOV > 0)
-                targetWeaponFOV = weapon.ZoomWeaponFOV;
+            if (weapon.General.ZoomWeaponFOV > 0)
+                targetWeaponFOV = weapon.General.ZoomWeaponFOV;
 
-            playerFOVSpeed = weapon.ZoomInFOVSpeed;
+            playerFOVSpeed = weapon.General.ZoomInFOVSpeed;
         }
         else
         {
             zoomTime = 0;
-            targetWeaponFOV = weapon.FOV;
+            targetWeaponFOV = weapon.General.FOV;
 
-            if (finalPlayerFOV != weapon.ZoomPlayerFOV)
+            if (finalPlayerFOV != weapon.General.ZoomPlayerFOV)
             {
-                playerFOVSpeed = weapon.ZoomOutFOVSpeed;
+                playerFOVSpeed = weapon.General.ZoomOutFOVSpeed;
             }
         }
     }
