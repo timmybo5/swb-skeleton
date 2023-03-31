@@ -29,6 +29,7 @@ public partial class WeaponBaseShotty : WeaponBase
     private void CancelReload()
     {
         IsReloading = false;
+        ViewModelEntity?.SetAnimParameter(General.ReloadAnim, false);
     }
 
     public override void AttackPrimary()
@@ -49,7 +50,7 @@ public partial class WeaponBaseShotty : WeaponBase
 
     public async Task EjectShell(string bulletEjectParticle)
     {
-        var player = Owner as PlayerBase;
+        var player = Owner as ISWBPlayer;
         var activeWeapon = player.ActiveChild;
         var instanceID = InstanceID;
 
@@ -60,7 +61,7 @@ public partial class WeaponBaseShotty : WeaponBase
 
     public override void Reload()
     {
-        General.ReloadTime = ShellReloadTimeStart;
+        General.ReloadTime = ShellReloadTimeStart + ShellReloadTimeInsert;
         base.Reload();
     }
 
@@ -77,7 +78,7 @@ public partial class WeaponBaseShotty : WeaponBase
         if (Primary.Ammo >= Primary.ClipSize)
             return;
 
-        if (Owner is PlayerBase player)
+        if (Owner is ISWBPlayer player)
         {
             var hasInfiniteReserve = Primary.InfiniteAmmo == InfiniteAmmoType.reserve;
             var ammo = hasInfiniteReserve ? 1 : player.TakeAmmo(Primary.AmmoType, 1);
@@ -94,20 +95,8 @@ public partial class WeaponBaseShotty : WeaponBase
             }
             else
             {
-                StartReloadEffects(false, General.ReloadAnim);
-                _ = FinishReload();
+                CancelReload();
             }
         }
-    }
-
-    public async Task FinishReload()
-    {
-        var player = Owner as PlayerBase;
-        var activeWeapon = player.ActiveChild;
-        var instanceID = InstanceID;
-
-        await GameTask.DelaySeconds(ShellEjectDelay);
-        if (!IsAsyncValid(activeWeapon, instanceID)) return;
-        StartReloadEffects(false, ReloadFinishAnim);
     }
 }

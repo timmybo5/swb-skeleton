@@ -9,7 +9,7 @@ partial class ViewModelBase : BaseViewModel
     public float EditorFOV;
 
     private WeaponBase weapon;
-    private PlayerBase player;
+    private ISWBPlayer player;
 
     private float animSpeed;
     private float playerFOVSpeed;
@@ -42,7 +42,7 @@ partial class ViewModelBase : BaseViewModel
     public ViewModelBase(WeaponBase weapon)
     {
         this.weapon = weapon;
-        player = weapon.Owner as PlayerBase;
+        player = weapon.Owner as ISWBPlayer;
     }
 
     public override void PlaceViewmodel()
@@ -94,7 +94,7 @@ partial class ViewModelBase : BaseViewModel
         targetWeaponFOV = weapon.General.FOV;
 
         // Model editor
-        if (Owner is PlayerBase player && (player.IsModelEditing() || player.IsAttachmentEditing()))
+        if (Owner is ISWBPlayer player && (player.IsEditingWeapon))
         {
             if (EditorOffset != AngPos.Zero)
             {
@@ -142,7 +142,7 @@ partial class ViewModelBase : BaseViewModel
         targetVectorRot -= new Vector3(MathF.Cos(breatheTime / 5.0f), MathF.Cos(breatheTime / 4.0f), MathF.Cos(breatheTime / 7.0f));
 
         // Crouching animation
-        if (Input.Down(InputButton.Duck))
+        if (Input.Down(InputButton.Duck) && Owner.GroundEntity != null)
             targetVectorPos += new Vector3(-1.0f, -1.0f, 0.5f);
     }
 

@@ -73,7 +73,7 @@ public class Crosshair : Panel
     {
         base.Tick();
 
-        if (Game.LocalPawn is not PlayerBase player) return;
+        if (Game.LocalPawn is not ISWBPlayer player) return;
 
         var weapon = player.ActiveChild as WeaponBase;
         bool isValidWeapon = weapon != null;
@@ -110,7 +110,7 @@ public class Crosshair : Panel
         {
             wasZooming = true;
 
-            if (player.IsFirstPersonMode)
+            if (Game.LocalPawn.IsFirstPersonMode)
             {
                 CenterDot.Style.Opacity = 0;
                 HideBarLines();

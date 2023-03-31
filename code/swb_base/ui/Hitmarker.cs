@@ -3,7 +3,6 @@ using Sandbox.UI;
 
 namespace SWB_Base.UI;
 
-
 public class Hitmarker : Panel
 {
     public static Hitmarker Current;

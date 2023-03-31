@@ -33,10 +33,22 @@ public partial class WeaponBase
 
                     // Adding to ActiveAttachments on client will not work since server overrides it
                     ActiveAttachments.Add(activeAttachment);
-                }
 
-                // One attachment per category
-                break;
+                    if (!string.IsNullOrEmpty(attachment.RequiresAttachmentWithName))
+                    {
+                        var reqAttachment = new ActiveAttachment
+                        {
+                            Name = attachment.RequiresAttachmentWithName,
+                            Category = GetAttachmentCategoryName(attachment.RequiresAttachmentWithName),
+                            Forced = true,
+                        };
+
+                        ActiveAttachments.Add(reqAttachment);
+                    }
+
+                    // One attachment per category
+                    break;
+                }
             }
         }
     }
@@ -199,7 +211,7 @@ public partial class WeaponBase
             return;
         }
 
-        var player = Owner as PlayerBase;
+        var player = Owner as ISWBPlayer;
         var activeWeapon = player.ActiveChild;
         await GameTask.DelaySeconds(0.05f);
         if (!IsAsyncValid(activeWeapon, instanceID)) return;
@@ -260,14 +272,6 @@ public partial class WeaponBase
             await GameTask.DelaySeconds(0.01f);
         }
 
-        // Wait for initialized stats
-        if (InitialStats == null)
-        {
-            await GameTask.DelaySeconds(0.1f);
-            await EquipAttachmentSV(name);
-            return;
-        }
-
         ToggleRequiredAttachment(name, true);
 
         // Server
@@ -308,7 +312,7 @@ public partial class WeaponBase
             return;
         }
 
-        var player = Owner as PlayerBase;
+        var player = Owner as ISWBPlayer;
         var activeWeapon = player.ActiveChild;
 
         await GameTask.DelaySeconds(0.05f);
