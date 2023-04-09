@@ -15,6 +15,9 @@ public partial class WeaponInfo : BaseNetworkable
     /// <summary>Player FOV while zooming (-1 to use default player fov)</summary>
     [Net] public int ZoomPlayerFOV { get; set; } = -1;
 
+    /// <summary>Player FOV while scoped (-1 to use default player fov)</summary>
+    [Net] public int ScopedPlayerFOV { get; set; } = -1;
+
     /// <summary>FOV zoom in speed</summary>
     [Net] public int ZoomInFOVSpeed { get; set; } = 1;
 
@@ -28,6 +31,9 @@ public partial class WeaponInfo : BaseNetworkable
 
     /// <summary>Procedural animation speed (lower is slower)</summary>
     [Net] public float WalkAnimationSpeedMod { get; set; } = 1;
+
+    /// <summary>Spread modifier while zooming (1 = no effect)</summary>
+    [Net] public float ZoomSpreadMod { get; set; } = 0.25f;
 
     // Animations // 
 

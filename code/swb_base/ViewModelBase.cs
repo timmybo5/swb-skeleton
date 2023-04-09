@@ -111,8 +111,7 @@ partial class ViewModelBase : BaseViewModel
         };
 
         // Tucking
-        float tuckDist;
-        if (weapon.RunAnimData != AngPos.Zero && weapon.ShouldTuck(out tuckDist))
+        if (weapon.RunAnimData != AngPos.Zero && weapon.ShouldTuck(out var tuckDist))
         {
             var animationCompletion = Math.Min(1, ((weapon.TuckRange - tuckDist) / weapon.TuckRange) + 0.5f);
             targetVectorPos = weapon.RunAnimData.Pos * animationCompletion;
@@ -220,6 +219,9 @@ partial class ViewModelBase : BaseViewModel
 
             if (weapon.General.ZoomPlayerFOV > 0)
                 targetPlayerFOV = weapon.General.ZoomPlayerFOV;
+
+            if (weapon.General.ScopedPlayerFOV > 0 && weapon.IsScoped)
+                targetPlayerFOV = weapon.General.ScopedPlayerFOV;
 
             if (weapon.General.ZoomWeaponFOV > 0)
                 targetWeaponFOV = weapon.General.ZoomWeaponFOV;

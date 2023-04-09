@@ -1,7 +1,7 @@
 ﻿
 namespace SWB_Base.Attachments;
 
-public class Sight : OffsetAttachment
+public class OffsetSight : OffsetAttachment
 {
     public override string Name => "Sight";
     public override string Description => "An optical sight that allows the user to look through a partially reflecting glass element and see an illuminated projection of an aiming point or some other image superimposed on the field of view.";
@@ -31,11 +31,31 @@ public class Sight : OffsetAttachment
     public int ZoomPlayerFOV;
     private int oldZoomPlayerFOV;
 
+    /// <summary>The new player scoped FOV (-1 to use default player fov)</summary>
+    public int ScopedPlayerFOV;
+    private int oldScopedPlayerFOV;
+
+    /// <summary>The new aim sensitivity</summary>
+    public float AimSensitivity;
+    private float oldAimSensitivity;
+
+    /// <summary>The new zoom out speed</summary>
+    public int ZoomOutFOVSpeed;
+    private int oldZoomOutFOVSpeed;
+
+    /// <summary>The new zoom spread modifier</summary>
+    public float ZoomSpreadMod = -1;
+    private float oldZoomSpreadMod;
+
     public override void OnEquip(WeaponBase weapon, AttachmentModel attachmentModel)
     {
         oldZoomAnimData = weapon.ZoomAnimData;
         oldZoomWeaponFOV = weapon.General.ZoomWeaponFOV;
         oldZoomPlayerFOV = weapon.General.ZoomPlayerFOV;
+        oldScopedPlayerFOV = weapon.General.ScopedPlayerFOV;
+        oldAimSensitivity = weapon.General.AimSensitivity;
+        oldZoomOutFOVSpeed = weapon.General.ZoomOutFOVSpeed;
+        oldZoomSpreadMod = weapon.General.ZoomSpreadMod;
 
         weapon.ZoomAnimData = ZoomAnimData;
 
@@ -44,6 +64,18 @@ public class Sight : OffsetAttachment
 
         if (ZoomPlayerFOV > 0)
             weapon.General.ZoomPlayerFOV = ZoomPlayerFOV;
+
+        if (ScopedPlayerFOV > 0)
+            weapon.General.ScopedPlayerFOV = ScopedPlayerFOV;
+
+        if (AimSensitivity > 0)
+            weapon.General.AimSensitivity = AimSensitivity;
+
+        if (ZoomOutFOVSpeed > 0)
+            weapon.General.ZoomOutFOVSpeed = ZoomOutFOVSpeed;
+
+        if (ZoomSpreadMod > -1)
+            weapon.General.ZoomSpreadMod = ZoomSpreadMod;
     }
 
     public override void OnUnequip(WeaponBase weapon)
@@ -51,10 +83,14 @@ public class Sight : OffsetAttachment
         weapon.ZoomAnimData = oldZoomAnimData;
         weapon.General.ZoomWeaponFOV = oldZoomWeaponFOV;
         weapon.General.ZoomPlayerFOV = oldZoomPlayerFOV;
+        weapon.General.AimSensitivity = oldAimSensitivity;
+        weapon.General.ZoomOutFOVSpeed = oldZoomOutFOVSpeed;
+        weapon.General.ZoomSpreadMod = oldZoomSpreadMod;
+        weapon.General.ScopedPlayerFOV = oldScopedPlayerFOV;
     }
 }
 
-public class ReflexSight : Sight
+public class ReflexSight : OffsetSight
 {
     public override string Name => "Walther MRS Reflex";
     public override string IconPath => "attachments/swb/sight/reflex/ui/icon.png";
