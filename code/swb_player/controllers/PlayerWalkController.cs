@@ -1,4 +1,5 @@
 ﻿using Sandbox;
+using SWB_Base;
 
 /* Result from Pain Day 4, this will be here temporarily until it is clear how templates work */
 
@@ -161,7 +162,7 @@ public partial class PlayerWalkController : PlayerBaseController
 
         // if ( underwater ) do underwater movement
 
-        if ((AutoJump || Swimming) ? Input.Down(InputButton.Jump) : Input.Pressed(InputButton.Jump))
+        if ((AutoJump || Swimming) ? Input.Down(InputButtonHelper.Jump) : Input.Pressed(InputButtonHelper.Jump))
         {
             CheckJumpButton();
         }
@@ -188,7 +189,14 @@ public partial class PlayerWalkController : PlayerBaseController
         //
         WishVelocity = new Vector3(pl.InputDirection.x.Clamp(-1f, 1f), pl.InputDirection.y.Clamp(-1f, 1f), 0);
         var inSpeed = WishVelocity.Length.Clamp(0, 1);
-        WishVelocity *= pl.ViewAngles.WithPitch(0).ToRotation();
+        if (!Swimming && !IsTouchingLadder)
+        {
+            WishVelocity *= pl.ViewAngles.WithPitch(0).ToRotation();
+        }
+        else
+        {
+            WishVelocity *= pl.ViewAngles.ToRotation();
+        }
 
         if (!Swimming && !IsTouchingLadder)
         {
@@ -240,6 +248,8 @@ public partial class PlayerWalkController : PlayerBaseController
         // Swim Sounds
 
         SaveGroundPos();
+        LatchOntoLadder();
+        PreviousGroundEntity = GroundEntity;
 
         if (Debug)
         {
@@ -290,8 +300,8 @@ public partial class PlayerWalkController : PlayerBaseController
         var ws = Duck.GetWishSpeed();
         if (ws >= 0) return ws;
 
-        if (Input.Down(InputButton.Run)) return SprintSpeed;
-        if (Input.Down(InputButton.Walk)) return WalkSpeed;
+        if (Input.Down(InputButtonHelper.Run)) return SprintSpeed;
+        if (Input.Down(InputButtonHelper.Walk)) return WalkSpeed;
 
         return DefaultSpeed;
     }
@@ -574,16 +584,22 @@ public partial class PlayerWalkController : PlayerBaseController
     bool IsTouchingLadder = false;
     Vector3 LadderNormal;
 
+    Vector3 LastNonZeroWishLadderVelocity;
     public virtual void CheckLadder()
     {
         var pl = Pawn as PlayerBase;
         var wishvel = new Vector3(pl.InputDirection.x.Clamp(-1f, 1f), pl.InputDirection.y.Clamp(-1f, 1f), 0);
+        if (wishvel.Length > 0)
+        {
+            LastNonZeroWishLadderVelocity = wishvel;
+        }
+        if (TryLatchNextTickCounter > 0) wishvel = LastNonZeroWishLadderVelocity * -1;
         wishvel *= pl.ViewAngles.WithPitch(0).ToRotation();
         wishvel = wishvel.Normal;
 
         if (IsTouchingLadder)
         {
-            if (Input.Pressed(InputButton.Jump))
+            if (Input.Pressed(InputButtonHelper.Jump))
             {
                 Velocity = LadderNormal * 100.0f;
                 IsTouchingLadder = false;
@@ -628,6 +644,49 @@ public partial class PlayerWalkController : PlayerBaseController
         Move();
     }
 
+    Entity PreviousGroundEntity;
+    int TryLatchNextTickCounter = 0;
+    Vector3 LastNonZeroWishVelocity;
+    [ConVar.Replicated("sv_ladderlatchdebug")]
+    public static bool LatchDebug { get; set; } = false;
+    public virtual void LatchOntoLadder()
+    {
+        var pl = Pawn as PlayerBase;
+        if (!WishVelocity.Normal.IsNearlyZero(0.001f))
+        {
+            LastNonZeroWishVelocity = WishVelocity;
+        }
+        if (TryLatchNextTickCounter > 0)
+        {
+
+            Velocity = (LastNonZeroWishVelocity.Normal * -100).WithZ(Velocity.z);
+            TryLatchNextTickCounter++;
+        }
+        if (TryLatchNextTickCounter >= 10)
+        {
+            TryLatchNextTickCounter = 0;
+        }
+
+        if (GroundEntity != null) return;
+        if (PreviousGroundEntity == null) return;
+        var pos = Position + (Vector3.Down * 16);
+        //var tr = TraceBBox( pos, pos );
+
+        var tr = Trace.Ray(pos, pos - (LastNonZeroWishVelocity.Normal * 8))
+                    .Size(mins, maxs)
+                    .WithTag("ladder")
+                    .Ignore(pl)
+                    .Run();
+
+        if (LatchDebug) DebugOverlay.Line(Position, pos, 10);
+        if (LatchDebug) DebugOverlay.Line(tr.StartPosition, tr.EndPosition, 10);
+        if (tr.Hit)
+        {
+            Velocity = Vector3.Zero.WithZ(Velocity.z);
+            TryLatchNextTickCounter++;
+        }
+
+    }
 
     public virtual void CategorizePosition(bool bStayOnGround)
     {
