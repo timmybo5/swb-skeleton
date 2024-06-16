@@ -22,17 +22,23 @@ public partial class Weapon
 		{
 			if ( Input.Pressed( inputButton ) )
 			{
+				// Check for auto reloading
+				if ( Settings.AutoReload && lastAttackTime > GetRealRPM( shootInfo.RPM ) )
+				{
+					TimeSincePrimaryShoot = 999;
+					TimeSinceSecondaryShoot = 999;
+
+					if ( ShellReloading )
+						OnShellReload();
+					else
+						Reload();
+
+					return false;
+				}
+
+				// Dry fire
 				if ( shootInfo.DryShootSound is not null )
 					PlaySound( shootInfo.DryShootSound.ResourceId );
-
-				// Check for auto reloading
-				//if ( AutoReloadSV > 0 )
-				//{
-				//	TimeSincePrimaryAttack = 999;
-				//	TimeSinceSecondaryAttack = 999;
-				//	timeSinceFired = 999;
-				//	Reload();
-				//}
 			}
 
 			return false;
@@ -208,18 +214,25 @@ public partial class Weapon
 		// Particles
 		if ( tr.Surface.ImpactEffects.Bullet is not null )
 		{
-			var effectPath = Game.Random.FromList( tr.Surface.ImpactEffects.Bullet );
+			var effectPath = Game.Random.FromList( tr.Surface.ImpactEffects.Bullet, "particles/impact.generic.smokepuff.vpcf" );
 
-			// Surface def for flesh has wrong blood particle linked
-			if ( effectPath.Contains( "impact.flesh" ) )
+			if ( effectPath is not null )
 			{
-				effectPath = "particles/impact.flesh.bloodpuff.vpcf";
-			}
+				// Surface def for flesh has wrong blood particle linked
+				if ( effectPath.Contains( "impact.flesh" ) )
+				{
+					effectPath = "particles/impact.flesh.bloodpuff.vpcf";
+				}
+				else if ( effectPath.Contains( "impact.wood" ) )
+				{
+					effectPath = "particles/impact.generic.smokepuff.vpcf";
+				}
 
-			var p = new SceneParticles( Scene.SceneWorld, effectPath );
-			p.SetControlPoint( 0, tr.HitPosition );
-			p.SetControlPoint( 0, Rotation.LookAt( tr.Normal ) );
-			p.PlayUntilFinished( TaskSource.Create() );
+				var p = new SceneParticles( Scene.SceneWorld, effectPath );
+				p.SetControlPoint( 0, tr.HitPosition );
+				p.SetControlPoint( 0, Rotation.LookAt( tr.Normal ) );
+				p.PlayUntilFinished( TaskSource.Create() );
+			}
 		}
 
 		// Decal

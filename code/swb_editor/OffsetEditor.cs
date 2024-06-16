@@ -12,8 +12,6 @@ public enum DragMode
 
 public partial class OffsetEditor
 {
-	public virtual bool InvertedX => false;
-
 	public float X { get; set; } = 0f;
 	public float Y { get; set; } = 0f;
 	public float Z { get; set; } = 0f;
@@ -35,7 +33,6 @@ public partial class OffsetEditor
 	float zOrigin;
 	float pitchOrigin;
 	float yawOrigin;
-	//AngPos sightAttachmentAnimData;
 
 	Weapon weapon;
 
@@ -49,12 +46,6 @@ public partial class OffsetEditor
 		if ( !firstTime ) return;
 
 		DragModeLabel.Text = "x/z";
-
-		// Get data from active sight attachment
-		//var showButton = false;
-		//var player = Game.LocalPawn as PlayerBase;
-		//var weapon = player.ActiveChild as WeaponBase;
-		//var activeAttach = weapon.GetActiveAttachmentFromCategory( AttachmentCategoryName.Sight );
 		FOV = weapon.FOV;
 	}
 
@@ -86,25 +77,20 @@ public partial class OffsetEditor
 
 	public void SetAimAnimData()
 	{
-		SetFromAngPos( weapon.AimAnimData, weapon.AimFOV );
+		SetFromAngPos( weapon.AimAnimData );
 	}
 
 	public void SetRunAnimData()
 	{
-		SetFromAngPos( weapon.RunAnimData, weapon.FOV );
+		SetFromAngPos( weapon.RunAnimData );
 	}
 
 	public void SetCustomizeAnimData()
 	{
-		// SetFromAngPos( activeWeapon.CustomizeAnimData );
+		SetFromAngPos( weapon.CustomizeAnimData );
 	}
 
-	public void SetSightAttachmentAnimData()
-	{
-		// SetFromAngPos( sightAttachmentAnimData );
-	}
-
-	private void SetFromAngPos( AngPos angPos, float FOV )
+	private void SetFromAngPos( AngPos angPos )
 	{
 		X = angPos.Pos.x;
 		Y = angPos.Pos.y;
@@ -112,7 +98,7 @@ public partial class OffsetEditor
 		Pitch = angPos.Angle.pitch;
 		Yaw = angPos.Angle.yaw;
 		Roll = angPos.Angle.roll;
-		this.FOV = FOV;
+		this.FOV = weapon.FOV;
 	}
 
 	protected override void OnMouseMove( MousePanelEvent e )

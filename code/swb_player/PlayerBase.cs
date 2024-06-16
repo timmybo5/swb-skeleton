@@ -67,10 +67,10 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 		}
 
 		if ( !IsProxy )
-		{
 			Respawn();
-		}
 	}
+
+
 
 	[Broadcast]
 	public virtual void OnDeath( Shared.DamageInfo info )
@@ -79,8 +79,10 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 
 		if ( attackerGO is not null && !attackerGO.IsProxy )
 		{
-			var attacker = attackerGO?.Components.Get<PlayerBase>();
-			attacker.Kills += 1;
+			var attacker = attackerGO.Components.Get<PlayerBase>();
+
+			if ( attacker is not null )
+				attacker.Kills += 1;
 		}
 
 		if ( IsProxy ) return;
@@ -92,7 +94,7 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 		RespawnWithDelay( 2 );
 	}
 
-	async void RespawnWithDelay( float delay )
+	public async void RespawnWithDelay( float delay )
 	{
 		await GameTask.DelaySeconds( delay );
 		Respawn();
@@ -105,7 +107,14 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 
 		var spawnLocation = GetSpawnLocation();
 		Transform.Position = spawnLocation.Position;
-		Transform.Rotation = spawnLocation.Rotation;
+		EyeAngles = spawnLocation.Rotation.Angles();
+		Network.ClearInterpolation();
+
+		if ( IsBot )
+		{
+			Body.Transform.Rotation = new Angles( 0, EyeAngles.ToRotation().Yaw(), 0 ).ToRotation();
+			AnimationHelper.WithLook( EyeAngles.ToRotation().Forward, 1f, 0.75f, 0.5f );
+		}
 	}
 
 	public virtual Transform GetSpawnLocation()

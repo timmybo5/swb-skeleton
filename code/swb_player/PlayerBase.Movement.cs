@@ -25,6 +25,7 @@ public partial class PlayerBase
 
 	public CharacterController CharacterController { get; set; }
 	public CitizenAnimationHelper AnimationHelper { get; set; }
+	public CapsuleCollider BodyCollider { get; set; }
 
 	TimeSince timeSinceLastFootstep = 0;
 
@@ -32,6 +33,7 @@ public partial class PlayerBase
 	{
 		CharacterController = Components.Get<CharacterController>();
 		AnimationHelper = Components.Get<CitizenAnimationHelper>();
+		BodyCollider = Body.Components.Get<CapsuleCollider>();
 
 		if ( BodyRenderer is not null )
 			BodyRenderer.OnFootstepEvent += OnAnimEventFootstep;
@@ -149,6 +151,7 @@ public partial class PlayerBase
 		{
 			IsCrouching = true;
 			CharacterController.Height /= 2f;
+			BodyCollider.End = BodyCollider.End.WithZ( BodyCollider.End.z / 2f );
 		}
 
 		if ( IsCrouching && !Input.Down( InputButtonHelper.Duck ) )
@@ -161,6 +164,7 @@ public partial class PlayerBase
 			{
 				IsCrouching = false;
 				CharacterController.Height = targetHeight;
+				BodyCollider.End = BodyCollider.End.WithZ( BodyCollider.End.z * 2f );
 			}
 		}
 	}
@@ -194,7 +198,9 @@ public partial class PlayerBase
 		if ( !tr.Hit ) return;
 
 		var sound = tr.Surface.PlayCollisionSound( footstepEvent.Transform.Position );
-		sound.Volume = footstepEvent.Volume;
+		if ( sound is not null )
+			sound.Volume = footstepEvent.Volume;
+
 		timeSinceLastFootstep = 0;
 	}
 }

@@ -47,6 +47,12 @@ public class ViewModelHandler : Component
 	Vector3 localVel;
 	bool isAiming;
 
+	protected override void OnDestroy()
+	{
+		// Game.Preferences.FieldOfView; -> new Preferences.FieldOfView 
+		player.Camera.FieldOfView = Screen.CreateVerticalFieldOfView( 90 );
+	}
+
 	protected override void OnUpdate()
 	{
 		var renderType = ShouldDraw ? ModelRenderer.ShadowRenderType.Off : ModelRenderer.ShadowRenderType.ShadowsOnly;
@@ -130,6 +136,7 @@ public class ViewModelHandler : Component
 		HandleSwayAnimation();
 		HandleIronAnimation();
 		HandleSprintAnimation();
+		HandleCustomizeAnimation();
 	}
 
 	void HandleIdleAnimation()
@@ -255,24 +262,22 @@ public class ViewModelHandler : Component
 
 	void HandleSprintAnimation()
 	{
-		if ( Weapon.IsRunning && Weapon.RunAnimData != AngPos.Zero /* && !Weapon.IsCustomizing */ )
+		if ( Weapon.IsRunning && Weapon.RunAnimData != AngPos.Zero && !Weapon.IsCustomizing )
 		{
 			targetVectorPos += Weapon.RunAnimData.Pos;
 			targetVectorRot += MathUtil.ToVector3( Weapon.RunAnimData.Angle );
 		}
 	}
 
-	/*
-void HandleCustomizeAnimation()
-{
-if ( Weapon.IsCustomizing && Weapon.CustomizeAnimData != AngPos.Zero )
-{
-targetVectorPos += Weapon.CustomizeAnimData.Pos;
-targetVectorRot += MathUtil.ToVector3( Weapon.CustomizeAnimData.Angle );
-}
-}
 
-	*/
+	void HandleCustomizeAnimation()
+	{
+		if ( Weapon.IsCustomizing && Weapon.CustomizeAnimData != AngPos.Zero )
+		{
+			targetVectorPos += Weapon.CustomizeAnimData.Pos;
+			targetVectorRot += MathUtil.ToVector3( Weapon.CustomizeAnimData.Angle );
+		}
+	}
 
 	void HandleJumpAnimation()
 	{

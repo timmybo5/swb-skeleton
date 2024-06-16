@@ -19,6 +19,7 @@ public class SniperScope : Panel
 	{
 		this.weapon = weapon;
 		StyleSheet.Load( "/swb_base/ui/SniperScope.cs.scss" );
+		Style.Opacity = 0;
 
 		if ( scopeTexture != null )
 			Add.Panel( "leftBar" );
@@ -75,7 +76,9 @@ public class SniperScope : Panel
 		var rotateTransform = new PanelTransform();
 		lensRotation = MathUtil.FILerp( lensRotation, targetRotation, 20 );
 		rotateTransform.AddRotation( 0, 0, lensRotation );
-
 		scope.Style.Transform = rotateTransform;
+
+		// Movement blur
+		scope.Style.FilterBlur = Math.Abs( lensRotation * 2 + velocityJump + lensBob );
 	}
 }
