@@ -34,12 +34,15 @@ public class HitScanBullet : IBulletBase
 		if ( !weapon.IsProxy && hitObj is not null && hitObj.Tags.Has( TagsHelper.Player ) )
 		{
 			var target = hitObj.Components.GetInAncestorsOrSelf<IPlayerBase>();
+			if ( !target.IsAlive ) return;
+
 			var hitTags = Array.Empty<string>();
 
 			if ( bulletTr.Hitbox is not null )
 				hitTags = bulletTr.Hitbox.Tags.TryGetAll().ToArray();
 
-			target?.TakeDamage( Shared.DamageInfo.FromBullet( weapon.Owner.Id, weapon.ClassName, shootInfo.Damage, forward * 25 * shootInfo.Force, hitTags ) );
+			var dmgInfo = Shared.DamageInfo.FromBullet( weapon.Owner.Id, weapon.ClassName, shootInfo.Damage, bulletTr.HitPosition, forward * 100 * shootInfo.Force, hitTags );
+			target?.TakeDamage( dmgInfo );
 		}
 	}
 
