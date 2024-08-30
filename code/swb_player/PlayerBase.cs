@@ -1,5 +1,6 @@
 using SWB.Shared;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace SWB.Player;
@@ -18,6 +19,9 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 	[Sync] public bool IsBot { get; set; }
 	public IInventory Inventory { get; set; }
 	public bool IsFirstPerson => cameraMovement.IsFirstPerson;
+	public string DisplayName => !IsBot ? (Network.OwnerConnection?.DisplayName ?? "Disconnected") : GameObject.Name;
+	public ulong SteamId => !IsBot ? Network.OwnerConnection.SteamId : 0;
+	public bool IsHost => !IsBot && Network.OwnerConnection.IsHost;
 	public float InputSensitivity
 	{
 		get { return cameraMovement.InputSensitivity; }
@@ -38,6 +42,13 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 		cameraMovement = Components.GetInChildren<CameraMovement>();
 
 		if ( IsBot ) return;
+
+		// Hide client until fully loaded in OnStart
+		if ( !IsProxy )
+		{
+			Transform.Position = new( 0, 0, -999999 );
+			Network.ClearInterpolation();
+		}
 
 		OnMovementAwake();
 	}
@@ -73,6 +84,7 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 	[Broadcast]
 	public virtual void OnDeath( Shared.DamageInfo info )
 	{
+		if ( !IsValid ) return;
 		var attackerGO = Scene.Directory.FindByGuid( info.AttackerId );
 
 		if ( attackerGO is not null && !attackerGO.IsProxy )
@@ -128,12 +140,6 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 		return randomSpawnPoint.Transform.World;
 	}
 
-	public static PlayerBase GetLocal()
-	{
-		var players = Game.ActiveScene.GetAllComponents<PlayerBase>();
-		return players.First( ( player ) => !player.IsProxy && !player.IsBot );
-	}
-
 	protected override void OnUpdate()
 	{
 		if ( IsBot ) return;
@@ -143,6 +149,7 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 			OnMovementUpdate();
 
 		HandleFlinch();
+		HandleScreenShake();
 		UpdateClothes();
 	}
 
@@ -150,5 +157,16 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 	{
 		if ( !IsAlive || IsBot ) return;
 		OnMovementFixedUpdate();
+	}
+
+	public static PlayerBase GetLocal()
+	{
+		var players = GetAll();
+		return players.First( ( player ) => !player.IsProxy && !player.IsBot );
+	}
+
+	public static IEnumerable<PlayerBase> GetAll()
+	{
+		return Game.ActiveScene.GetAllComponents<PlayerBase>();
 	}
 }

@@ -102,6 +102,10 @@ public partial class Weapon
 		// Recoil
 		Owner.EyeAnglesOffset += GetRecoilAngles( shootInfo );
 
+		// Screenshake
+		if ( shootInfo.ScreenShake is not null )
+			Owner.ShakeScreen( shootInfo.ScreenShake );
+
 		// UI
 		BroadcastUIEvent( "shoot", GetRealRPM( shootInfo.RPM ) );
 
@@ -117,8 +121,9 @@ public partial class Weapon
 	[Broadcast]
 	public virtual void ShootBullet( bool isPrimary, Vector3 spreadOffset )
 	{
+		if ( !IsValid ) return;
 		var shootInfo = GetShootInfo( isPrimary );
-		shootInfo.BulletType.Shoot( this, shootInfo, spreadOffset );
+		shootInfo?.BulletType?.Shoot( this, shootInfo, spreadOffset );
 	}
 
 	/// <summary> A single bullet trace from start to end with a certain radius.</summary>
@@ -145,11 +150,15 @@ public partial class Weapon
 	[Broadcast]
 	public virtual void HandleShootEffects( bool isPrimary )
 	{
+		if ( !IsValid || Owner is null ) return;
+
 		// Player
 		Owner.BodyRenderer.Set( "b_attack", true );
 
 		// Weapon
 		var shootInfo = GetShootInfo( isPrimary );
+		if ( shootInfo is null ) return;
+
 		var scale = CanSeeViewModel ? shootInfo.VMParticleScale : shootInfo.WMParticleScale;
 		var muzzleTransform = GetMuzzleTransform();
 
