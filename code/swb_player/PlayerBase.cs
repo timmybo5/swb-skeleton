@@ -15,13 +15,16 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 	[Property] public CameraComponent Camera { get; set; }
 	[Property] public CameraComponent ViewModelCamera { get; set; }
 	[Property] public PanelComponent RootDisplay { get; set; }
+	[Property] public Voice Voice { get; set; }
 
 	[Sync] public bool IsBot { get; set; }
 	public IInventory Inventory { get; set; }
 	public bool IsFirstPerson => cameraMovement.IsFirstPerson;
-	public string DisplayName => !IsBot ? (Network.OwnerConnection?.DisplayName ?? "Disconnected") : GameObject.Name;
-	public ulong SteamId => !IsBot ? Network.OwnerConnection.SteamId : 0;
-	public bool IsHost => !IsBot && Network.OwnerConnection.IsHost;
+	public string DisplayName => !IsBot ? (Network.Owner?.DisplayName ?? "Disconnected") : GameObject.Name;
+	public ulong SteamId => !IsBot ? Network.Owner.SteamId : 0;
+	public bool IsHost => !IsBot && Network.Owner.IsHost;
+	public bool IsSpeaking => Voice.Amplitude > 0;
+
 	public float InputSensitivity
 	{
 		get { return cameraMovement.InputSensitivity; }
@@ -38,15 +41,16 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 
 	protected override void OnAwake()
 	{
-		Inventory = new Inventory( this );
+		Inventory = Components.Create<Inventory>();
 		cameraMovement = Components.GetInChildren<CameraMovement>();
+		Voice = Components.GetInChildren<Voice>();
 
 		if ( IsBot ) return;
 
 		// Hide client until fully loaded in OnStart
 		if ( !IsProxy )
 		{
-			Transform.Position = new( 0, 0, -999999 );
+			WorldPosition = new( 0, 0, -999999 );
 			Network.ClearInterpolation();
 		}
 
@@ -110,19 +114,32 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 		Respawn();
 	}
 
+	[Broadcast]
+	public void RespawnWithDelayBroadCast( float delay )
+	{
+		RespawnWithDelay( delay );
+	}
+
+	[Broadcast]
+	public void RespawnBroadCast()
+	{
+		Respawn();
+	}
+
 	public virtual void Respawn()
 	{
 		Unragdoll();
+		Inventory.Clear();
 		Health = MaxHealth;
 
 		var spawnLocation = GetSpawnLocation();
-		Transform.Position = spawnLocation.Position;
+		WorldPosition = spawnLocation.Position;
 		EyeAngles = spawnLocation.Rotation.Angles();
 		Network.ClearInterpolation();
 
 		if ( IsBot )
 		{
-			Body.Transform.Rotation = new Angles( 0, EyeAngles.ToRotation().Yaw(), 0 ).ToRotation();
+			Body.WorldRotation = new Angles( 0, EyeAngles.ToRotation().Yaw(), 0 ).ToRotation();
 			AnimationHelper.WithLook( EyeAngles.ToRotation().Forward, 1f, 0.75f, 0.5f );
 		}
 	}
