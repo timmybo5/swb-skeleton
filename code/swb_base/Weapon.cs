@@ -25,6 +25,13 @@ public partial class Weapon : Component, IInventoryItem
 		Settings = WeaponSettings.Instance;
 		InitialPrimaryStats = StatsModifier.FromShootInfo( Primary );
 		InitialSecondaryStats = StatsModifier.FromShootInfo( Primary );
+
+		// Hack: Hide weapon object until position is set when creating world model
+		if ( !IsProxy )
+		{
+			WorldPosition = new( 0, 0, -999999 );
+			Network.ClearInterpolation();
+		}
 	}
 
 	protected override void OnDestroy()
@@ -260,7 +267,6 @@ public partial class Weapon : Component, IInventoryItem
 
 			var bodyRenderer = Owner.Body.Components.Get<SkinnedModelRenderer>();
 			ModelUtil.ParentToBone( GameObject, bodyRenderer, "hold_R" );
-			Network.ClearInterpolation();
 		}
 	}
 

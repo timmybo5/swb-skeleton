@@ -1,4 +1,4 @@
-using Sandbox.Network;
+using System.Threading.Tasks;
 
 namespace SWB.Demo;
 
@@ -8,14 +8,12 @@ public class DemoNetworkManager : Component, Component.INetworkListener
 {
 	[Property] public PrefabScene PlayerPrefab { get; set; }
 
-	protected override void OnStart()
+	protected override Task OnLoad()
 	{
-		if ( !GameNetworkSystem.IsActive )
-		{
-			GameNetworkSystem.CreateLobby();
-		}
+		if ( !Networking.IsActive )
+			Networking.CreateLobby( new() );
 
-		base.OnStart();
+		return base.OnLoad();
 	}
 
 	// Called on host
