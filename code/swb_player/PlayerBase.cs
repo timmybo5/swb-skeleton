@@ -22,7 +22,7 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 	public ICameraMovement CameraMovement { get; set; }
 	public bool IsFirstPerson => CameraMovement.IsFirstPerson;
 	public string DisplayName => !IsBot ? (Network.Owner?.DisplayName ?? "Disconnected") : GameObject.Name;
-	public ulong SteamId => !IsBot ? Network.Owner.SteamId : 0;
+	public SteamId SteamId => !IsBot ? Network.Owner.SteamId : new( 0 );
 	public bool IsHost => !IsBot && Network.Owner.IsHost;
 	public bool IsSpeaking => Voice.Amplitude > 0;
 
@@ -31,10 +31,13 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 		get { return CameraMovement.InputSensitivity; }
 		set { CameraMovement.InputSensitivity = value; }
 	}
-	public Angles EyeAnglesOffset
+
+	public float FieldOfView
 	{
-		get { return CameraMovement.EyeAnglesOffset; }
-		set { CameraMovement.EyeAnglesOffset = value; }
+		set
+		{
+			Camera.FieldOfView = value;
+		}
 	}
 
 	Guid IPlayerBase.Id { get => GameObject.Id; }
@@ -43,7 +46,6 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 	{
 		Inventory = Components.Create<Inventory>();
 		CameraMovement = Components.GetInChildren<CameraMovement>();
-		Voice = Components.GetInChildren<Voice>();
 
 		if ( IsBot ) return;
 
@@ -57,13 +59,12 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 		OnMovementAwake();
 	}
 
-	public void OnNetworkSpawn( Connection connection )
-	{
-		ApplyClothes( connection );
-	}
+	public virtual void OnNetworkSpawn( Connection connection ) { }
 
 	protected override void OnStart()
 	{
+		ApplyClothes();
+
 		if ( IsProxy || IsBot )
 		{
 			if ( Camera is not null )
@@ -85,25 +86,40 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 			Respawn();
 	}
 
-	[Broadcast]
+	[Rpc.Owner]
+	public void Kill()
+	{
+		if ( !IsAlive ) return;
+		Health = 0;
+		OnDeath( new() { Attacker = GameObject } );
+	}
+
+	[Rpc.Owner]
+	public void Kick( string reason )
+	{
+		Log.Info( reason );
+		Game.Disconnect();
+	}
+
+	[Rpc.Broadcast]
 	public virtual void OnDeath( Shared.DamageInfo info )
 	{
 		if ( !IsValid ) return;
-		var attackerGO = Scene.Directory.FindByGuid( info.AttackerId );
+		var attackerGO = info.Attacker;
 
 		if ( attackerGO is not null && !attackerGO.IsProxy )
 		{
 			var attacker = attackerGO.Components.Get<PlayerBase>();
 
-			if ( attacker is not null )
-				attacker.Kills += 1;
+			if ( attacker is not null && attacker != this )
+				attacker.Kills++;
 		}
 
 		if ( IsProxy ) return;
 
-		Deaths += 1;
+		Deaths++;
+		Ragdoll( info.Force, info.Origin, CharacterController.Velocity );
 		CharacterController.Velocity = 0;
-		Ragdoll( info.Force, info.Origin );
 		Inventory.Clear();
 		RespawnWithDelay( 2 );
 	}
@@ -114,13 +130,13 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 		Respawn();
 	}
 
-	[Broadcast]
+	[Rpc.Broadcast]
 	public void RespawnWithDelayBroadCast( float delay )
 	{
 		RespawnWithDelay( delay );
 	}
 
-	[Broadcast]
+	[Rpc.Broadcast]
 	public void RespawnBroadCast()
 	{
 		Respawn();
@@ -128,14 +144,6 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 
 	public virtual void Respawn()
 	{
-		// Hack: Delaying with just 1ms fixes the 1 frame body at death position.
-		async void UnragdollWithDelay()
-		{
-			await GameTask.Delay( 1 );
-			Unragdoll();
-		}
-		UnragdollWithDelay();
-
 		Inventory.Clear();
 		Health = MaxHealth;
 
@@ -143,6 +151,7 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 		WorldPosition = spawnLocation.Position;
 		EyeAngles = spawnLocation.Rotation.Angles();
 		Network.ClearInterpolation();
+		Unragdoll();
 
 		if ( IsBot )
 		{
@@ -166,7 +175,12 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 
 	protected override void OnUpdate()
 	{
-		if ( IsBot ) return;
+		if ( IsBot )
+		{
+			UpdateClothes();
+			return;
+		}
+
 		if ( !IsProxy ) ViewModelCamera.Enabled = IsFirstPerson && IsAlive;
 
 		if ( IsAlive )
@@ -183,10 +197,33 @@ public partial class PlayerBase : Component, Component.INetworkSpawn, IPlayerBas
 		OnMovementFixedUpdate();
 	}
 
+	public void TriggerAnimation( Animations animation )
+	{
+		string animationName = animation switch
+		{
+			Animations.Attack => "b_attack",
+			Animations.Reload => "b_reload",
+			_ => ""
+		};
+
+		if ( animationName == "" ) return;
+		BodyRenderer.Set( animationName, true );
+	}
+
+	public void ApplyRecoilOffset( Angles recoilOffset )
+	{
+		CameraMovement.EyeAnglesOffset += recoilOffset;
+	}
+
+	public void ParentToBone( GameObject weaponObject, string boneName )
+	{
+		ModelUtil.ParentToBone( weaponObject, BodyRenderer, boneName );
+	}
+
 	public static PlayerBase GetLocal()
 	{
 		var players = GetAll();
-		return players.First( ( player ) => !player.IsProxy && !player.IsBot );
+		return players.FirstOrDefault( ( player ) => !player.IsProxy && !player.IsBot, null );
 	}
 
 	public static IEnumerable<PlayerBase> GetAll()

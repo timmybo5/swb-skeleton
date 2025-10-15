@@ -4,16 +4,16 @@ namespace SWB.Player;
 
 public partial class PlayerBase
 {
-	[Sync] public string clothingJSON { get; set; }
-	ClothingContainer clothingContainer;
+	[Property] public Dresser Dresser { get; set; }
 	List<SkinnedModelRenderer> clothingRenderers = new();
 
-	void ApplyClothes( Connection connection )
+	void ApplyClothes()
 	{
-		clothingJSON = connection.GetUserData( "avatar" );
-		clothingContainer = ClothingContainer.CreateFromJson( clothingJSON );
-		clothingContainer.Apply( BodyRenderer );
+		Dresser.Apply();
+	}
 
+	void UpdateClothingRenderers()
+	{
 		BodyRenderer.GameObject.Children.ForEach( c =>
 		{
 			if ( c.Name.StartsWith( "Clothing" ) )
@@ -28,18 +28,9 @@ public partial class PlayerBase
 	{
 		// Can take a while to spawn on clients so we check here until they are spawned in
 		if ( clothingRenderers.Count == 0 )
-		{
-			BodyRenderer.GameObject.Children.ForEach( c =>
-			{
-				if ( c.Name.StartsWith( "Clothing" ) )
-				{
-					var renderer = c.Components.Get<SkinnedModelRenderer>();
-					clothingRenderers.Add( renderer );
-				}
-			} );
-		}
+			UpdateClothingRenderers();
 
-		if ( !IsProxy && IsAlive && IsFirstPerson )
+		if ( !IsProxy && !IsBot && IsAlive && IsFirstPerson )
 		{
 			BodyRenderer.RenderType = ModelRenderer.ShadowRenderType.ShadowsOnly;
 		}
@@ -48,9 +39,21 @@ public partial class PlayerBase
 			BodyRenderer.RenderType = ModelRenderer.ShadowRenderType.On;
 		}
 
+		// Fix for body teleporting from death pos and being visible onEnabled
+		if ( !IsAlive )
+		{
+			BodyRenderer.Tint = Color.Transparent;
+		}
+		else
+		{
+			BodyRenderer.Tint = Color.White;
+		}
+
 		clothingRenderers.ForEach( c =>
 		{
+			if ( c is null ) return;
 			c.RenderType = BodyRenderer.RenderType;
+			c.Tint = BodyRenderer.Tint;
 		} );
 	}
 }

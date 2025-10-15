@@ -16,11 +16,15 @@ public class RootWeaponDisplay : PanelComponent
 
 		Panel.StyleSheet.Load( "/swb_base/ui/RootWeaponDisplay.cs.scss" );
 
-		var crosshair = new Crosshair( Weapon );
-		Panel.AddChild( crosshair );
+		if ( Weapon.CrosshairSettings.Enabled )
+			Panel.AddChild( new Crosshair( Weapon ) );
 
 		if ( Weapon.Scoping )
 		{
+			// Sight attachments should take care of their own scope hud elements
+			var attachment = Weapon.GetActiveAttachmentForCategory( Attachments.AttachmentCategory.Sight );
+			if ( attachment.IsValid() ) return;
+
 			var sniperScope = new SniperScope( Weapon, Weapon.ScopeInfo.LensTexture, Weapon.ScopeInfo.ScopeTexture );
 			Panel.AddChild( sniperScope );
 		}

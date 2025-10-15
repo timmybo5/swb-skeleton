@@ -8,6 +8,7 @@ public class Crosshair : Panel
 {
 	IPlayerBase player => weapon.Owner;
 	Weapon weapon;
+	CrosshairSettings crosshairSettings => weapon.CrosshairSettings;
 
 	Panel centerDot;
 	Panel leftBar;
@@ -79,14 +80,11 @@ public class Crosshair : Panel
 
 		SetClass( "hideCrosshair", shouldHide );
 
-		//var hideCrosshairDot = shouldHide  /*|| !weapon.UISettings.ShowCrosshairDot*/;
-		//centerDot.SetClass( "hideCrosshair", hideCrosshairDot );
-
-		//var hideCrosshairLines = shouldHide /*|| !weapon.UISettings.ShowCrosshairLines*/;
-		//leftBar.SetClass( "hideCrosshair", hideCrosshairLines );
-		//rightBar.SetClass( "hideCrosshair", hideCrosshairLines );
-		//topBar.SetClass( "hideCrosshair", hideCrosshairLines );
-		//bottomBar.SetClass( "hideCrosshair", hideCrosshairLines );
+		centerDot.SetClass( "hideCrosshair", !crosshairSettings.ShowDot );
+		leftBar.SetClass( "hideCrosshair", !crosshairSettings.ShowLeft );
+		rightBar.SetClass( "hideCrosshair", !crosshairSettings.ShowRight );
+		topBar.SetClass( "hideCrosshair", !crosshairSettings.ShowTop );
+		bottomBar.SetClass( "hideCrosshair", !crosshairSettings.ShowBottom );
 
 		if ( shouldHide ) return;
 
@@ -98,7 +96,7 @@ public class Crosshair : Panel
 		bottomBar.Style.MarginTop = screenOffset;
 
 		// Sprint spread offsets
-		if ( weapon.IsRunning || weapon.ShouldTuck() || weapon.IsReloading || weapon.IsDeploying || (weapon.InBoltBack && !weapon.IsAiming) )
+		if ( weapon.IsRunning || weapon.ShouldTuckVar || weapon.IsReloading || weapon.IsDeploying || (weapon.InBoltBack && !weapon.IsAiming) )
 		{
 			leftBar.Style.Left = -sprintOffset;
 			rightBar.Style.Left = sprintOffset - 5;

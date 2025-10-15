@@ -56,7 +56,8 @@ public partial class Weapon
 			}
 
 			return false;
-		};
+		}
+		;
 
 		if ( shootInfo.RPM <= 0 ) return true;
 
@@ -100,7 +101,7 @@ public partial class Weapon
 		barrelHeat += 1;
 
 		// Recoil
-		Owner.EyeAnglesOffset += GetRecoilAngles( shootInfo );
+		Owner.ApplyRecoilOffset( GetRecoilAngles( shootInfo ) );
 
 		// Screenshake
 		if ( shootInfo.ScreenShake is not null )
@@ -112,13 +113,13 @@ public partial class Weapon
 		// Bullet
 		for ( int i = 0; i < shootInfo.Bullets; i++ )
 		{
-			var realSpread = IsScoping ? 0 : GetRealSpread( shootInfo.Spread );
+			var realSpread = GetRealSpread( shootInfo.Spread );
 			var spreadOffset = shootInfo.BulletType.GetRandomSpread( realSpread );
 			ShootBullet( isPrimary, spreadOffset );
 		}
 	}
 
-	[Broadcast]
+	[Rpc.Broadcast]
 	public virtual void ShootBullet( bool isPrimary, Vector3 spreadOffset )
 	{
 		if ( !IsValid ) return;
@@ -127,19 +128,19 @@ public partial class Weapon
 	}
 
 	/// <summary> A single bullet trace from start to end with a certain radius.</summary>
-	public virtual SceneTraceResult TraceBullet( Vector3 start, Vector3 end, float radius = 2.0f )
+	public static SceneTraceResult TraceBullet( GameObject toIgnoreGO, Vector3 start, Vector3 end, float radius = 2.0f )
 	{
 		var startsInWater = SurfaceUtil.IsPointWater( start );
-		List<string> withoutTags = new() { TagsHelper.Trigger, TagsHelper.PlayerClip, TagsHelper.PassBullets, TagsHelper.ViewModel };
+		var withoutTags = new List<string>() { TagsHelper.Trigger, TagsHelper.PlayerClip, TagsHelper.PassBullets, TagsHelper.ViewModel };
 
 		if ( startsInWater )
 			withoutTags.Add( TagsHelper.Water );
 
-		var tr = Scene.Trace.Ray( start, end )
+		var tr = Game.ActiveScene.Trace.Ray( start, end )
 				.UseHitboxes()
 				.WithoutTags( withoutTags.ToArray() )
 				.Size( radius )
-				.IgnoreGameObjectHierarchy( Owner.GameObject )
+				.IgnoreGameObjectHierarchy( toIgnoreGO )
 				.Run();
 
 		// Log.Info( tr.GameObject );
@@ -147,13 +148,19 @@ public partial class Weapon
 		return tr;
 	}
 
-	[Broadcast]
+	/// <summary> A single bullet trace from start to end with a certain radius.</summary>
+	public virtual SceneTraceResult TraceBullet( Vector3 start, Vector3 end, float radius = 2.0f )
+	{
+		return TraceBullet( Owner.GameObject, start, end, radius );
+	}
+
+	[Rpc.Broadcast]
 	public virtual void HandleShootEffects( bool isPrimary )
 	{
 		if ( !IsValid || Owner is null ) return;
 
 		// Player
-		Owner.BodyRenderer.Set( "b_attack", true );
+		Owner.TriggerAnimation( Shared.Animations.Attack );
 
 		// Weapon
 		var shootInfo = GetShootInfo( isPrimary );
@@ -169,7 +176,7 @@ public partial class Weapon
 			{
 				if ( !ShellReloading || (ShellReloading && ShellEjectDelay == 0) )
 				{
-					CreateParticle( shootInfo.BulletEjectParticle, "ejection_point", scale );
+					CreateParticle( shootInfo.BulletEjectParticle, "ejection_point", scale, attachmentYawOnly: true );
 				}
 				else
 				{
@@ -177,7 +184,7 @@ public partial class Weapon
 					{
 						await GameTask.DelaySeconds( ShellEjectDelay );
 						if ( !IsValid ) return;
-						CreateParticle( shootInfo.BulletEjectParticle, "ejection_point", scale );
+						CreateParticle( shootInfo.BulletEjectParticle, "ejection_point", scale, attachmentYawOnly: true );
 					};
 					delayedEject();
 				}
@@ -192,107 +199,92 @@ public partial class Weapon
 
 		// Muzzle flash
 		if ( shootInfo.MuzzleFlashParticle is not null )
-			CreateParticle( shootInfo.MuzzleFlashParticle, muzzleTransform.Value, scale, ( particles ) => ParticleToMuzzlePos( particles ) );
+			CreateParticle( shootInfo.MuzzleFlashParticle, muzzleTransform.Value, scale, ( particle ) => ParticleToMuzzleTrans( particle ) );
 
 		// Barrel smoke
 		if ( !IsProxy && shootInfo.BarrelSmokeParticle is not null && barrelHeat >= shootInfo.ClipSize * 0.75 )
-			CreateParticle( shootInfo.BarrelSmokeParticle, muzzleTransform.Value, shootInfo.VMParticleScale, ( particles ) => ParticleToMuzzlePos( particles ) );
+			CreateParticle( shootInfo.BarrelSmokeParticle, muzzleTransform.Value, shootInfo.VMParticleScale, ( particles ) => ParticleToMuzzleTrans( particles ) );
 	}
 
-	void ParticleToMuzzlePos( SceneParticles particles )
+	void ParticleToMuzzleTrans( GameObject particle )
 	{
-		var transform = GetMuzzleTransform();
-
-		if ( transform.HasValue )
+		if ( !particle.IsValid ) return;
+		var muzzleTransform = GetMuzzleTransform();
+		if ( !muzzleTransform.HasValue )
 		{
-			// Apply velocity to prevent muzzle shift when moving fast
-			particles?.SetControlPoint( 0, transform.Value.Position + Owner.Velocity * 0.03f );
-			particles?.SetControlPoint( 0, transform.Value.Rotation );
+			particle.Destroy();
+			return;
 		}
-		else
-		{
-			particles?.Delete();
-		}
+		particle.WorldPosition = muzzleTransform.Value.Position; // + Owner.Velocity * 0.03f;particles?.Delete();
+		particle.WorldRotation = muzzleTransform.Value.Rotation;
 	}
 
 	/// <summary>Create a bullet impact effect</summary>
-	public virtual void CreateBulletImpact( SceneTraceResult tr )
+	public static GameObject CreateBulletImpact( SceneTraceResult tr )
 	{
 		// Sound
 		tr.Surface.PlayCollisionSound( tr.HitPosition );
 
-		// Particles
-		if ( tr.Surface.ImpactEffects.Bullet is not null )
+		// Decal & Particles
+		var impactPrefab = tr.Surface.PrefabCollection.BulletImpact;
+		if ( impactPrefab is null || !impactPrefab.IsValid ) return null;
+
+		var cloneConfig = new CloneConfig()
 		{
-			var effectPath = Game.Random.FromList( tr.Surface.ImpactEffects.Bullet, "particles/impact.generic.smokepuff.vpcf" );
-
-			if ( effectPath is not null )
+			Name = "bullet_decal",
+			StartEnabled = true,
+			Transform = new()
 			{
-				// Surface def for flesh has wrong blood particle linked
-				if ( effectPath.Contains( "impact.flesh" ) )
-				{
-					effectPath = "particles/impact.flesh.bloodpuff.vpcf";
-				}
-				else if ( effectPath.Contains( "impact.wood" ) )
-				{
-					effectPath = "particles/impact.generic.smokepuff.vpcf";
-				}
-
-				var p = new SceneParticles( Scene.SceneWorld, effectPath );
-				p.SetControlPoint( 0, tr.HitPosition );
-				p.SetControlPoint( 0, Rotation.LookAt( tr.Normal ) );
-				p.PlayUntilFinished( TaskSource.Create() );
-			}
-		}
-
-		// Decal
-		if ( tr.Surface.ImpactEffects.BulletDecal is not null )
-		{
-			var decalPath = Game.Random.FromList( tr.Surface.ImpactEffects.BulletDecal, "decals/bullethole.decal" );
-
-			if ( ResourceLibrary.TryGet<DecalDefinition>( decalPath, out var decalDef ) )
-			{
-				var decalEntry = Game.Random.FromList( decalDef.Decals );
-
-				var gameObject = Scene.CreateObject();
-				gameObject.Name = "Bullet Decal";
-				//gameObject.SetParent( tr.GameObject, false );
-				gameObject.WorldPosition = tr.HitPosition;
-				gameObject.WorldRotation = Rotation.LookAt( -tr.Normal );
-				gameObject.NetworkMode = NetworkMode.Never;
-
-				var decalRenderer = gameObject.Components.Create<DecalRenderer>();
-				decalRenderer.Material = decalEntry.Material;
-				decalRenderer.Size = new( decalEntry.Height.GetValue(), decalEntry.Height.GetValue(), decalEntry.Depth.GetValue() );
-				gameObject.DestroyAsync( 30f );
-			}
-		}
+				Position = tr.HitPosition,
+				Rotation = Rotation.LookAt( -tr.Normal ),
+			},
+			//Parent = tr.GameObject,
+		};
+		var decalGO = impactPrefab.Clone( cloneConfig );
+		decalGO.NetworkMode = NetworkMode.Never;
+		decalGO.DestroyAsync( 30f );
+		return decalGO;
 	}
 
 	/// <summary>Create a weapon particle</summary>
-	public virtual void CreateParticle( ParticleSystem particle, string attachment, float scale, Action<SceneParticles> OnFrame = null )
+	public virtual void CreateParticle( GameObject particle, string attachment, float scale, Action<GameObject> OnParticleCreated = null, bool attachmentYawOnly = false )
 	{
 		var effectRenderer = GetEffectRenderer();
-
 		if ( effectRenderer is null || effectRenderer.SceneModel is null ) return;
 
 		var transform = effectRenderer.SceneModel.GetAttachment( attachment );
-
 		if ( !transform.HasValue ) return;
 
-		CreateParticle( particle, transform.Value, scale, OnFrame );
+		// Useful when creating model particles
+		if ( attachmentYawOnly )
+		{
+			var pitch = CanSeeViewModel ? ViewModelHandler.WorldRotation.Pitch() : WorldRotation.Pitch();
+			var yaw = transform.Value.Rotation.Yaw();
+			var newRot = Rotation.From( new Angles( 0, yaw, -pitch ) );
+			transform = transform.Value.WithRotation( newRot );
+		}
+
+		CreateParticle( particle, transform.Value, scale, OnParticleCreated );
 	}
 
-	public virtual void CreateParticle( ParticleSystem particle, Transform transform, float scale, Action<SceneParticles> OnFrame = null )
+	/// <summary>Create a weapon particle</summary>
+	public virtual void CreateParticle( GameObject particle, float scale, Action<GameObject> OnParticleCreated = null )
 	{
-		SceneParticles particles = new( Scene.SceneWorld, particle );
-		particles?.SetControlPoint( 0, transform.Position );
-		particles?.SetControlPoint( 0, transform.Rotation );
-		particles?.SetNamedValue( "scale", scale );
+		CreateParticle( particle, new Transform(), scale, OnParticleCreated );
+	}
+
+	/// <summary>Create a weapon particle</summary>
+	public virtual void CreateParticle( GameObject particle, Transform transform, float scale, Action<GameObject> OnParticleCreated = null )
+	{
+		var go = particle.Clone( transform.WithScale( scale ) );
 
 		if ( CanSeeViewModel )
-			particles.Tags.Add( TagsHelper.ViewModel );
+			go.Tags.Add( TagsHelper.ViewModel );
 
-		particles?.PlayUntilFinished( Task, OnFrame );
+		var p = go.GetComponentInChildren<ParticleEffect>();
+		p.OnParticleCreated += ( p ) =>
+		{
+			OnParticleCreated?.Invoke( go );
+		};
 	}
 }

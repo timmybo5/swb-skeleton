@@ -11,6 +11,7 @@ public partial class Weapon : Component, IInventoryItem
 {
 	public IPlayerBase Owner { get; private set; }
 	public ViewModelHandler ViewModelHandler { get; private set; }
+	public PlayerCameraHandler CameraHandler { get; private set; }
 	public SkinnedModelRenderer ViewModelRenderer { get; private set; }
 	public SkinnedModelRenderer ViewModelHandsRenderer { get; private set; }
 	public SkinnedModelRenderer WorldModelRenderer { get; private set; }
@@ -24,7 +25,18 @@ public partial class Weapon : Component, IInventoryItem
 		Attachments = Components.GetAll<Attachment>( FindMode.EverythingInSelf ).OrderBy( att => att.Name ).ToList();
 		Settings = WeaponSettings.Instance;
 		InitialPrimaryStats = StatsModifier.FromShootInfo( Primary );
-		InitialSecondaryStats = StatsModifier.FromShootInfo( Primary );
+
+		// Default BulletType
+		if ( Primary is not null && Primary.BulletType is null )
+			Primary.BulletType = Components.Create<HitScanBulletInfo>();
+		if ( Secondary is not null && Secondary.BulletType is null )
+			Secondary.BulletType = Components.Create<HitScanBulletInfo>();
+
+		// Stats
+		if ( Secondary is not null )
+			InitialSecondaryStats = StatsModifier.FromShootInfo( Secondary );
+		else
+			InitialSecondaryStats = StatsModifier.Zero;
 
 		// Hack: Hide weapon object until position is set when creating world model
 		if ( !IsProxy )
@@ -33,6 +45,8 @@ public partial class Weapon : Component, IInventoryItem
 			Network.ClearInterpolation();
 		}
 	}
+
+
 
 	protected override void OnDestroy()
 	{
@@ -57,34 +71,50 @@ public partial class Weapon : Component, IInventoryItem
 		if ( ViewModelHandler is not null )
 			ViewModelHandler.ShouldDraw = false;
 
+		// Attachments (VM + HUD)
+		Attachments.ForEach( ( att ) =>
+		{
+			if ( att.Equipped )
+			{
+				if ( att.ViewModelRenderer is not null )
+					att.ViewModelRenderer.Enabled = false;
+
+				if ( att.CreatedUI )
+					att.DestroyHudElements();
+			}
+		} );
+
 		IsReloading = false;
 		IsScoping = false;
 		IsAiming = false;
 		IsCustomizing = false;
 
+		if ( Owner is not null )
+			Owner.HoldType = HoldTypes.None;
+
 		DestroyUI();
 	}
 
-	[Broadcast]
-	public void OnCarryStart()
+	[Rpc.Broadcast]
+	public virtual void OnCarryStart()
 	{
 		if ( !IsValid ) return;
 		GameObject.Enabled = true;
 	}
 
-	[Broadcast]
-	public void OnCarryStop()
+	[Rpc.Broadcast]
+	public virtual void OnCarryStop()
 	{
 		if ( !IsValid ) return;
 		GameObject.Enabled = false;
 	}
 
-	public bool CanCarryStop()
+	public virtual bool CanCarryStop()
 	{
 		return TimeSinceDeployed > 0;
 	}
 
-	public void OnDeploy()
+	public virtual void OnDeploy()
 	{
 		var delay = 0f;
 
@@ -105,8 +135,14 @@ public partial class Weapon : Component, IInventoryItem
 		if ( DeploySound is not null )
 			PlaySound( DeploySound.ResourceId );
 
-		// Start drawing
-		ViewModelHandler.ShouldDraw = true;
+		// Start drawing (We delay by 1 frame to allow the animation to start first)
+		async void ShouldDrawDelayed()
+		{
+			await GameTask.Delay( 1 );
+			if ( ViewModelHandler.IsValid() )
+				ViewModelHandler.ShouldDraw = true;
+		}
+		ShouldDrawDelayed();
 
 		// Boltback
 		if ( InBoltBack )
@@ -115,8 +151,31 @@ public partial class Weapon : Component, IInventoryItem
 
 	protected override void OnStart()
 	{
-		Owner = Components.GetInAncestors<IPlayerBase>();
+		Owner = Components.GetInAncestors<IPlayerBase>( true );
+		if ( !Owner.IsValid() )
+		{
+			Log.Error( $"{ClassName} cannot find owner, destroying!" );
+			Destroy();
+			return;
+		}
+
+		if ( !IsProxy )
+		{
+			CameraHandler = Components.GetOrCreate<PlayerCameraHandler>();
+			CameraHandler.Weapon = this;
+		}
+
 		CreateModels();
+
+		// Attachments (enabled via property)
+		if ( !IsProxy )
+		{
+			Attachments.ForEach( att =>
+			{
+				if ( att.Enable && !att.Equipped )
+					att.EquipBroadCast();
+			} );
+		}
 
 		// Attachments (load for clients joining late)
 		if ( IsProxy )
@@ -136,11 +195,13 @@ public partial class Weapon : Component, IInventoryItem
 		if ( Owner is null ) return;
 
 		UpdateModels();
-		Owner.AnimationHelper.HoldType = HoldType;
+		Owner.HoldType = HoldType;
 
 		if ( !IsProxy )
 		{
 			if ( IsDeploying ) return;
+
+			ShouldTuckVar = ShouldTuck( out TuckDist );
 
 			// Customization
 			if ( WeaponSettings.Instance.Customization && !IsScoping && !IsAiming && Input.Pressed( InputButtonHelper.Menu ) && Attachments.Count > 0 )
@@ -161,7 +222,9 @@ public partial class Weapon : Component, IInventoryItem
 			if ( IsScoping )
 				Owner.InputSensitivity = ScopeInfo.AimSensitivity;
 			else if ( IsAiming )
-				Owner.InputSensitivity = AimSensitivity;
+				Owner.InputSensitivity = AimInfo.Sensitivity;
+			else
+				Owner.InputSensitivity = 1f;
 
 			if ( Scoping )
 			{
@@ -212,7 +275,20 @@ public partial class Weapon : Component, IInventoryItem
 	{
 		if ( !IsProxy && WorldModelRenderer is not null )
 		{
-			WorldModelRenderer.RenderType = Owner.IsFirstPerson ? ModelRenderer.ShadowRenderType.ShadowsOnly : ModelRenderer.ShadowRenderType.On;
+			var worldModelRenderType = Owner.IsFirstPerson ? ModelRenderer.ShadowRenderType.ShadowsOnly : ModelRenderer.ShadowRenderType.On;
+			WorldModelRenderer.RenderType = worldModelRenderType;
+
+			// Attachments
+			Attachments.ForEach( ( att ) =>
+			{
+				if ( !att.Equipped ) return;
+
+				if ( att.ViewModelRenderer is not null )
+					att.ViewModelRenderer.Enabled = Owner.IsFirstPerson && ViewModelHandler.ShouldDraw;
+
+				if ( att.WorldModelRenderer is not null )
+					att.WorldModelRenderer.RenderType = worldModelRenderType;
+			} );
 		}
 	}
 
@@ -223,7 +299,7 @@ public partial class Weapon : Component, IInventoryItem
 			var viewModelGO = new GameObject( true, "Viewmodel" );
 			viewModelGO.SetParent( Owner.GameObject, false );
 			viewModelGO.Tags.Add( TagsHelper.ViewModel );
-			viewModelGO.Flags |= GameObjectFlags.NotNetworked;
+			viewModelGO.NetworkMode = NetworkMode.Never;
 
 			ViewModelRenderer = viewModelGO.Components.Create<SkinnedModelRenderer>();
 			ViewModelRenderer.Model = ViewModel;
@@ -234,14 +310,33 @@ public partial class Weapon : Component, IInventoryItem
 			{
 				// Prevent flickering when enabling the component, this is controlled by the ViewModelHandler
 				ViewModelRenderer.RenderType = ModelRenderer.ShadowRenderType.ShadowsOnly;
-				ResetViewModelAnimations();
+				ViewModelRenderer.ClearParameters();
 				OnDeploy();
 			};
 
 			ViewModelHandler = viewModelGO.Components.Create<ViewModelHandler>();
 			ViewModelHandler.Weapon = this;
 			ViewModelHandler.ViewModelRenderer = ViewModelRenderer;
-			ViewModelHandler.Camera = Owner.ViewModelCamera;
+			var viewModelCamera = Owner.ViewModelCamera;
+			if ( Owner.ViewModelCamera is null )
+			{
+				var viewModelCameraGameObject = new GameObject();
+				viewModelCameraGameObject.Name = "ViewModelCamera";
+				viewModelCameraGameObject.SetParent( Owner.GameObject, false );
+
+				// Setup the view model camera
+				viewModelCamera = viewModelCameraGameObject.Components.Create<CameraComponent>();
+				viewModelCamera.ClearFlags = ClearFlags.Depth | ClearFlags.Stencil;
+				viewModelCamera.ZNear = 1;
+				viewModelCamera.Priority = 2;
+				viewModelCamera.TargetEye = StereoTargetEye.RightEye;
+				viewModelCamera.RenderTags.Add( new TagSet() { TagsHelper.ViewModel, TagsHelper.Light } );
+
+				Owner.ViewModelCamera = viewModelCamera;
+			}
+			ViewModelHandler.Camera = viewModelCamera;
+
+			Owner.Camera.RenderExcludeTags.Add( TagsHelper.ViewModel );
 
 			if ( ViewModelHands is not null )
 			{
@@ -265,33 +360,12 @@ public partial class Weapon : Component, IInventoryItem
 			WorldModelRenderer.AnimationGraph = WorldModel.AnimGraph;
 			WorldModelRenderer.CreateBoneObjects = true;
 
-			var bodyRenderer = Owner.Body.Components.Get<SkinnedModelRenderer>();
-			ModelUtil.ParentToBone( GameObject, bodyRenderer, "hold_R" );
+			Owner.ParentToBone( GameObject, "hold_R" );
 		}
 	}
 
-	// Temp fix until https://github.com/Facepunch/sbox-issues/issues/5247 is fixed
-	void ResetViewModelAnimations()
-	{
-		ViewModelRenderer?.Set( Primary.ShootAnim, false );
-		ViewModelRenderer?.Set( Primary.ShootEmptyAnim, false );
-		ViewModelRenderer?.Set( Primary.ShootAimedAnim, false );
-
-		if ( Secondary is not null )
-		{
-			ViewModelRenderer?.Set( Secondary.ShootAnim, false );
-			ViewModelRenderer?.Set( Secondary.ShootEmptyAnim, false );
-			ViewModelRenderer?.Set( Secondary.ShootAimedAnim, false );
-		}
-
-		ViewModelRenderer?.Set( ReloadAnim, false );
-		ViewModelRenderer?.Set( ReloadEmptyAnim, false );
-		ViewModelRenderer?.Set( DrawAnim, false );
-		ViewModelRenderer?.Set( DrawEmptyAnim, false );
-	}
-
-	[Broadcast]
-	void PlaySound( int resourceID )
+	[Rpc.Broadcast]
+	public void PlaySound( int resourceID )
 	{
 		if ( !IsValid ) return;
 

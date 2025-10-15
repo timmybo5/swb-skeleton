@@ -1,46 +1,63 @@
-﻿namespace SWB.Player;
+﻿using SWB.Shared;
+
+namespace SWB.Player;
 
 public partial class PlayerBase
 {
-	[Property] public ModelPhysics RagdollPhysics { get; set; }
+	public GameObject RagdollGO { get; set; }
+	public bool IsRagdolled => RagdollGO.IsValid;
 
-	public bool IsRagdolled => RagdollPhysics.Enabled;
-
-	[Broadcast]
-	public virtual void Ragdoll( Vector3 force, Vector3 forceOrigin )
+	[Rpc.Broadcast]
+	public virtual void Ragdoll( Vector3 force, Vector3 forceOrigin, Vector3 velocity )
 	{
 		if ( !IsValid ) return;
-
-		ToggleColliders( false );
-		RagdollPhysics.Enabled = true;
-		//Body.Tags.Add( TagsHelper.Trigger );
-		//RagdollPhysics.Tags.Add( TagsHelper.Trigger );
-
-		foreach ( var body in RagdollPhysics.PhysicsGroup.Bodies )
-		{
-			//body.GetGameObject().Tags.Add( TagsHelper.Trigger );
-			body.ApplyImpulseAt( forceOrigin, force );
-		}
+		CreateRagdoll( force, forceOrigin, velocity );
+		Body.Enabled = false;
 	}
 
-	public virtual void ToggleColliders( bool enable )
+	public virtual void CreateRagdoll( Vector3 force, Vector3 forceOrigin, Vector3 velocity )
 	{
-		var colliders = Body.Components.GetAll<Collider>( FindMode.EverythingInSelfAndParent );
+		RagdollGO = new GameObject( true, "Ragdoll" );
+		RagdollGO.Tags.Add( TagsHelper.DeadPlayer );
+		RagdollGO.NetworkMode = NetworkMode.Never;
+		RagdollGO.WorldPosition = WorldPosition;
+		RagdollGO.WorldRotation = Body.WorldRotation;
 
-		foreach ( var collider in colliders )
+		// Renderer
+		var renderer = RagdollGO.AddComponent<SkinnedModelRenderer>();
+		renderer.Model = BodyRenderer.Model;
+		renderer.UseAnimGraph = false;
+		renderer.Sequence.Name = "Eyes_Closed";
+
+		// Clothes
+		Dresser.BodyTarget = renderer;
+		Dresser.Apply();
+		Dresser.BodyTarget = BodyRenderer;
+
+		// Physics
+		var physics = RagdollGO.AddComponent<ModelPhysics>( true );
+		physics.Model = renderer.Model;
+		physics.Renderer = renderer;
+		physics.CopyBonesFrom( BodyRenderer, true );
+
+		var forceMultiplier = IsOnGround ? 200 : 100;
+		velocity *= forceMultiplier;
+
+		foreach ( var body in physics.Bodies )
 		{
-			collider.Enabled = enable;
+			body.Component.ApplyForceAt( renderer.SceneModel.Bounds.Center, velocity );
+			body.Component.ApplyImpulseAt( forceOrigin, force );
 		}
 	}
 
-	[Broadcast]
+	[Rpc.Broadcast]
 	public virtual void Unragdoll()
 	{
-		if ( !IsValid || RagdollPhysics is null ) return;
-
-		RagdollPhysics.Renderer.LocalPosition = Vector3.Zero;
-		RagdollPhysics.Renderer.LocalRotation = Rotation.Identity;
-		RagdollPhysics.Enabled = false;
-		ToggleColliders( true );
+		if ( !IsValid ) return;
+		RagdollGO?.Destroy();
+		Body.Enabled = true;
+		Body.LocalPosition = Vector3.Zero;
+		Body.LocalRotation = Rotation.Identity;
+		BodyRenderer.ClearParameters();
 	}
 }

@@ -35,6 +35,9 @@ public abstract class Attachment : Component, IComparable<Attachment>
 	/// <summary>Only 1 active attachment per category, this is also used to determine what effect attachment to overide</summary>
 	public virtual AttachmentCategory Category => AttachmentCategory.None;
 
+	/// <summary>The category name</summary>
+	public string CategoryName => Enum.GetName( Category );
+
 	/// <summary>List of positive attributes</summary>
 	public virtual string[] Positives => Array.Empty<string>();
 
@@ -55,6 +58,9 @@ public abstract class Attachment : Component, IComparable<Attachment>
 
 	/// <summary>Hide this attachment in menus</summary>
 	public virtual bool Hide { get; set; } = false;
+
+	/// <summary>Equip this attachment by default (Only 1 attachment per category can be enabled by default!)</summary>
+	[Property] public bool Enable { get; set; }
 
 	/// <summary>Depends on another attachment (e.g. rail/mount)</summary>
 	[Property] public Attachment RequiresAttachment { get; set; }
@@ -80,12 +86,13 @@ public abstract class Attachment : Component, IComparable<Attachment>
 	/// <summary>If already equipped</summary>
 	[Sync] public bool Equipped { get; private set; }
 
+	public bool CreatedUI { get; private set; }
 	public Weapon Weapon { get; private set; }
 	public SkinnedModelRenderer ViewModelRenderer { get; private set; }
 	public SkinnedModelRenderer WorldModelRenderer { get; private set; }
 
-	private int equipTries = 0;
-	private bool equippedOnClient = false;
+	int equipTries = 0;
+	bool equippedOnClient = false;
 
 	protected override void OnAwake()
 	{
@@ -109,7 +116,8 @@ public abstract class Attachment : Component, IComparable<Attachment>
 		var attachmentGO = new GameObject( true, "Attachment" );
 		attachmentGO.Tags.Add( TagsHelper.Attachment );
 
-		var attachmentRenderer = attachmentGO.Components.Create<SkinnedModelRenderer>();
+		// Hack: Setting to false fixes shaders not working correctly
+		var attachmentRenderer = attachmentGO.Components.Create<SkinnedModelRenderer>( false );
 		attachmentRenderer.Model = Model.Load( ModelPath );
 		attachmentRenderer.Enabled = true;
 
@@ -117,7 +125,7 @@ public abstract class Attachment : Component, IComparable<Attachment>
 		{
 			attachmentRenderer.WorldScale = ViewModelScale;
 			ViewModelRenderer = attachmentRenderer;
-			attachmentGO.Flags |= GameObjectFlags.NotNetworked;
+			attachmentGO.NetworkMode = NetworkMode.Never;
 			ModelUtil.ParentToBone( attachmentGO, Weapon.ViewModelRenderer, Bone );
 		}
 		else
@@ -137,7 +145,7 @@ public abstract class Attachment : Component, IComparable<Attachment>
 	}
 
 	/// <summary>Equips the attachment for everyone</summary>
-	[Broadcast]
+	[Rpc.Broadcast]
 	public virtual void EquipBroadCast()
 	{
 		if ( !IsValid ) return;
@@ -198,7 +206,7 @@ public abstract class Attachment : Component, IComparable<Attachment>
 	}
 
 	/// <summary>Unequips the attachment for everyone</summary>
-	[Broadcast]
+	[Rpc.Broadcast]
 	public virtual void UnEquipBroadCast()
 	{
 		if ( !IsValid ) return;
@@ -240,10 +248,16 @@ public abstract class Attachment : Component, IComparable<Attachment>
 	public abstract void OnUnequip();
 
 	/// <summary>Gets called when the weapon is creating its HUD elements</summary>
-	public virtual void CreateHudElements() { }
+	public virtual void CreateHudElements()
+	{
+		CreatedUI = true;
+	}
 
 	/// <summary>Gets called when the weapon is destroying its HUD elements</summary>
-	public virtual void DestroyHudElements() { }
+	public virtual void DestroyHudElements()
+	{
+		CreatedUI = false;
+	}
 
 	public int CompareTo( Attachment obj )
 	{

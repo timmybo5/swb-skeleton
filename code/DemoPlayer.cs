@@ -1,6 +1,7 @@
 ﻿using SWB.Base;
 using SWB.HUD;
 using SWB.Player;
+using SWB.Shared;
 using System.Linq;
 
 namespace SWB.Demo;
@@ -9,18 +10,19 @@ namespace SWB.Demo;
 [Title( "Demo Player" )]
 public class DemoPlayer : PlayerBase
 {
+	TimeSince timeSincePerspectiveSwitch;
+
 	void GiveWeapon( string className, bool setActive = false )
 	{
-		var weaponGO = WeaponRegistry.Instance.Get( className );
+		var weapon = WeaponRegistry.Instance.Get( className );
 
-		if ( weaponGO is null )
+		if ( weapon is null )
 		{
 			Log.Error( $"[SWB Demo] {className} not found in WeaponRegistry!" );
 			return;
 		}
 
-		var weapon = weaponGO.Components.Get<Weapon>( true );
-		Inventory.AddClone( weaponGO, setActive );
+		Inventory.AddClone( weapon.GameObject, setActive );
 		SetAmmo( weapon.Primary.AmmoType, 360 );
 	}
 
@@ -53,11 +55,13 @@ public class DemoPlayer : PlayerBase
 		base.OnDeath( info );
 
 		var localPly = PlayerBase.GetLocal();
+		if ( localPly is null ) return;
+
 		var display = localPly.RootDisplay as RootDisplay;
-		display.AddToKillFeed( info.AttackerId, GameObject.Id, info.Inflictor );
+		display.AddToKillFeed( info.Attacker.Id, GameObject.Id, info.Inflictor );
 
 		// Leaderboards
-		if ( IsProxy && !IsBot && localPly.GameObject.Id == info.AttackerId )
+		if ( IsProxy && !IsBot && localPly.GameObject.Id == info.Attacker.Id )
 			Sandbox.Services.Stats.Increment( "kills", 1 );
 
 		if ( !IsProxy && !IsBot )
@@ -70,10 +74,31 @@ public class DemoPlayer : PlayerBase
 
 		// Attacker only
 		var localPly = PlayerBase.GetLocal();
-		if ( !localPly.IsAlive || localPly.GameObject.Id != info.AttackerId ) return;
+		if ( localPly is null || !localPly.IsAlive || localPly.GameObject.Id != info.Attacker.Id ) return;
 
 		var display = localPly.RootDisplay as RootDisplay;
 		display.CreateHitmarker( Health <= 0 );
 		Sound.Play( "hitmarker" );
+	}
+
+	protected override void OnUpdate()
+	{
+		base.OnUpdate();
+
+		if ( IsProxy ) return;
+
+		// Customization
+		if ( Input.Pressed( InputButtonHelper.View ) && timeSincePerspectiveSwitch > 0.5 )
+		{
+			var localPly = PlayerBase.GetLocal();
+			if ( localPly is null || !localPly.IsAlive ) return;
+
+			var activeWep = localPly.Inventory.Active.GetComponent<Weapon>();
+			if ( !activeWep.IsScoping && !activeWep.IsAiming )
+			{
+				ConsoleSystem.Run( "thirdperson" );
+				timeSincePerspectiveSwitch = 0;
+			}
+		}
 	}
 }

@@ -108,7 +108,7 @@ public partial class Weapon
 		await GameTask.DelaySeconds( BoltBackEjectDelay );
 		if ( !IsValid ) return;
 		var scale = CanSeeViewModel ? Primary.VMParticleScale : Primary.WMParticleScale;
-		CreateParticle( Primary.BulletEjectParticle, "ejection_point", scale );
+		CreateParticle( Primary.BulletEjectParticle, "ejection_point", scale, attachmentYawOnly: true );
 
 		// Finished
 		await GameTask.DelaySeconds( BoltBackTime - BoltBackEjectDelay );
@@ -116,10 +116,10 @@ public partial class Weapon
 		InBoltBack = false;
 	}
 
-	[Broadcast]
+	[Rpc.Broadcast]
 	public virtual void HandleReloadEffects()
 	{
 		// Player
-		Owner?.BodyRenderer?.Set( "b_reload", true );
+		Owner?.TriggerAnimation( Shared.Animations.Reload );
 	}
 }

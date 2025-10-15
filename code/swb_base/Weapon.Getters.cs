@@ -1,4 +1,5 @@
 ﻿using SWB.Base.Attachments;
+using SWB.Shared;
 
 namespace SWB.Base;
 
@@ -26,20 +27,16 @@ public partial class Weapon
 		if ( activeAttachment is not null )
 		{
 			effectAttachment = activeAttachment.EffectAttachmentOrBone;
-			Transform? effectBoneTransform = null;
 
-			// Custom models will not use attachments but bones instead to position effects
+			// If we have custom models use the attachment from those models instead of the main weapon one
 			if ( CanSeeViewModel && activeAttachment.ViewModelRenderer is not null )
 			{
-				effectBoneTransform = activeAttachment.ViewModelRenderer.SceneModel.GetBoneWorldTransform( effectAttachment );
+				effectRenderer = activeAttachment.ViewModelRenderer;
 			}
 			else if ( !CanSeeViewModel && activeAttachment.WorldModelRenderer is not null )
 			{
-				effectBoneTransform = activeAttachment.WorldModelRenderer.SceneModel.GetBoneWorldTransform( effectAttachment );
+				effectRenderer = activeAttachment.WorldModelRenderer;
 			}
-
-			if ( effectBoneTransform.HasValue )
-				return effectBoneTransform.Value;
 		}
 
 		return effectRenderer?.GetAttachment( effectAttachment );
@@ -114,7 +111,7 @@ public partial class Weapon
 
 		// Aiming
 		if ( IsAiming && Primary.Bullets == 1 )
-			floatMod /= 4;
+			floatMod *= AimInfo.SpreadModifier;
 
 		if ( !Owner.IsOnGround )
 		{

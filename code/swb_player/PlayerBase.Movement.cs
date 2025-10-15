@@ -20,12 +20,18 @@ public partial class PlayerBase
 	[Sync] public bool IsRunning { get; set; } = false;
 	[Sync] public bool CanMove { get; set; } = true;
 
-	public bool IsOnGround => CharacterController.IsOnGround;
-	public Vector3 Velocity => CharacterController.Velocity;
+	public bool IsOnGround => CharacterController?.IsOnGround ?? true;
+	public Vector3 Velocity => CharacterController?.Velocity ?? Vector3.Zero;
 	public Vector3 EyePos => Head.WorldPosition + EyeOffset;
+	public Angles EyeAnglesNormal => EyeAngles.Normal;
 
 	public CharacterController CharacterController { get; set; }
 	public CitizenAnimationHelper AnimationHelper { get; set; }
+	public HoldTypes HoldType
+	{
+		set { AnimationHelper.HoldType = (CitizenAnimationHelper.HoldTypes)value; }
+	}
+
 	public CapsuleCollider BodyCollider { get; set; }
 
 	TimeSince timeSinceLastFootstep = 0;
@@ -68,7 +74,7 @@ public partial class PlayerBase
 		WishVelocity = 0;
 		if ( !CanMove ) return;
 
-		var rot = EyeAngles.ToRotation();
+		var rot = Camera.WorldRotation; // = EyeAngles in firstperson | = Camera.WorldRotation in thirdperson
 		if ( Input.Down( InputButtonHelper.Forward ) ) WishVelocity += rot.Forward;
 		if ( Input.Down( InputButtonHelper.Backward ) ) WishVelocity += rot.Backward;
 		if ( Input.Down( InputButtonHelper.Left ) ) WishVelocity += rot.Left;
